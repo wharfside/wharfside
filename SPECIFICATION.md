@@ -620,8 +620,7 @@ SwiftUI View re-renders with new state
 
 ```
 wharfside/
-├── Sources/
-│   └── Wharfside/
+├── Wharfside/
 │       ├── App/
 │       │   ├── WharfsideApp.swift
 │       │   ├── AppDelegate.swift
@@ -680,14 +679,13 @@ wharfside/
 │           ├── Localizable.strings
 │           ├── Assets.xcassets
 │           └── Colors.xcassets
-├── Tests/
-│   ├── WharfsideTests/
-│   │   ├── ViewModels/
-│   │   ├── Services/
-│   │   ├── Models/
-│   │   └── Mocks/
-│   └── WharfsideUITests/
-│       └── *.swift
+├── WharfsideTests/
+│   ├── ViewModels/
+│   ├── Services/
+│   ├── Models/
+│   └── Mocks/
+├── WharfsideUITests/
+│   └── *.swift
 ├── Packages/
 │   └── WharfsideAnalysis/        # pure-Swift log digestion + heuristics (no app deps)
 ├── Package.swift
