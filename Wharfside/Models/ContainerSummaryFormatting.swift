@@ -17,6 +17,15 @@ enum ContainerSummaryFormatting {
         }
     }
 
+    static func statusLabel(_ status: ContainerRuntimeStatus) -> String {
+        switch status {
+        case .running: "Running"
+        case .stopping: "Stopping…"
+        case .stopped: "Stopped"
+        case .unknown: "Unknown"
+        }
+    }
+
     static func formatDuration(_ interval: TimeInterval) -> String {
         let totalSeconds = max(0, Int(interval))
         let days = totalSeconds / 86_400

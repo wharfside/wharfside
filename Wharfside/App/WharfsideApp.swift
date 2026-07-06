@@ -15,8 +15,9 @@ struct WharfsideApp: App {
             MainView()
                 .environment(appState)
                 .environment(aiAvailability)
-                .frame(minWidth: 800, minHeight: 600)
+                .frame(minWidth: 900, minHeight: 600)
         }
+        .defaultSize(width: 1_000, height: 700)
         .windowToolbarStyle(.unified)
 
         Settings {

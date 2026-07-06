@@ -34,11 +34,14 @@ enum RuntimeModelMapping {
             image: snapshot.configuration.image.reference,
             status: runtimeStatus(snapshot.status),
             command: [process.executable] + process.arguments,
-            environmentCount: process.environment.count,
-            mountCount: snapshot.configuration.mounts.count,
-            publishedPortCount: snapshot.configuration.publishedPorts.count,
-            networkCount: snapshot.networks.count,
-            startedAt: snapshot.startedDate
+            createdAt: snapshot.configuration.creationDate,
+            startedAt: snapshot.startedDate,
+            exitCode: nil,
+            restartCount: 0,
+            ports: snapshot.configuration.publishedPorts.map(portBinding(from:)),
+            mounts: snapshot.configuration.mounts.map(mount(from:)),
+            environment: environmentVariables(from: process.environment),
+            networks: snapshot.networks.map(networkAttachment(from:))
         )
     }
 
@@ -92,6 +95,59 @@ enum RuntimeModelMapping {
             appRoot: health.appRoot,
             installRoot: health.installRoot,
             logRootPath: health.logRoot?.string
+        )
+    }
+
+    nonisolated private static func portBinding(from port: PublishPort) -> ContainerPortBinding {
+        ContainerPortBinding(
+            hostAddress: String(describing: port.hostAddress),
+            hostPort: port.hostPort,
+            containerPort: port.containerPort,
+            proto: port.proto.rawValue
+        )
+    }
+
+    nonisolated private static func mount(from filesystem: Filesystem) -> ContainerMount {
+        ContainerMount(
+            source: filesystem.source,
+            destination: filesystem.destination,
+            type: mountTypeLabel(for: filesystem),
+            readOnly: filesystem.options.readonly
+        )
+    }
+
+    nonisolated private static func mountTypeLabel(for filesystem: Filesystem) -> String {
+        switch filesystem.type {
+        case .block(let format, _, _):
+            return "block (\(format))"
+        case .volume(let name, let format, _, _):
+            return "volume (\(name), \(format))"
+        case .virtiofs:
+            return "virtiofs"
+        case .tmpfs:
+            return "tmpfs"
+        }
+    }
+
+    nonisolated private static func environmentVariables(from raw: [String]) -> [ContainerEnvironmentVariable] {
+        raw.compactMap { entry in
+            guard let separator = entry.firstIndex(of: "=") else { return nil }
+            let key = String(entry[..<separator])
+            let valueStart = entry.index(after: separator)
+            let value = String(entry[valueStart...])
+            guard !key.isEmpty else { return nil }
+            return ContainerEnvironmentVariable(key: key, value: value)
+        }
+        .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+    }
+
+    nonisolated private static func networkAttachment(from attachment: Attachment) -> ContainerNetworkAttachment {
+        ContainerNetworkAttachment(
+            network: attachment.network,
+            hostname: attachment.hostname,
+            ipv4Address: String(describing: attachment.ipv4Address),
+            ipv4Gateway: String(describing: attachment.ipv4Gateway),
+            ipv6Address: attachment.ipv6Address.map { String(describing: $0) }
         )
     }
 

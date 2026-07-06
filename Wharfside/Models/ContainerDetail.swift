@@ -7,9 +7,12 @@ struct ContainerDetail: Sendable, Hashable, Identifiable {
     let image: String
     let status: ContainerRuntimeStatus
     let command: [String]
-    let environmentCount: Int
-    let mountCount: Int
-    let publishedPortCount: Int
-    let networkCount: Int
+    let createdAt: Date
     let startedAt: Date?
+    let exitCode: Int32?
+    let restartCount: Int
+    let ports: [ContainerPortBinding]
+    let mounts: [ContainerMount]
+    let environment: [ContainerEnvironmentVariable]
+    let networks: [ContainerNetworkAttachment]
 }

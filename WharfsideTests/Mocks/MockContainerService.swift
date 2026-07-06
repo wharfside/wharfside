@@ -5,16 +5,20 @@ import Foundation
 
 final class MockContainerService: ContainerServicing, @unchecked Sendable {
     var summaries: [ContainerSummary] = []
+    var detailsByID: [String: ContainerDetail] = [:]
     var detail = ContainerDetail(
         id: "mock",
         image: "alpine",
         status: .stopped,
         command: ["/bin/sh"],
-        environmentCount: 0,
-        mountCount: 0,
-        publishedPortCount: 0,
-        networkCount: 0,
-        startedAt: nil
+        createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+        startedAt: nil,
+        exitCode: nil,
+        restartCount: 0,
+        ports: [],
+        mounts: [],
+        environment: [],
+        networks: []
     )
     var stats = ContainerStats(
         id: "mock",
@@ -30,10 +34,12 @@ final class MockContainerService: ContainerServicing, @unchecked Sendable {
     var execResult = ExecResult(exitCode: 0, stdout: "", stderr: "")
 
     private(set) var listCallCount = 0
+    private(set) var getCallCount = 0
     private(set) var startCallCount = 0
     private(set) var stopCallCount = 0
     private(set) var killCallCount = 0
     private(set) var deleteCallCount = 0
+    private(set) var lastGetID: String?
     private(set) var lastStartedID: String?
     private(set) var lastStoppedID: String?
     private(set) var lastKilledID: String?
@@ -41,11 +47,14 @@ final class MockContainerService: ContainerServicing, @unchecked Sendable {
     private(set) var lastDeleteForce: Bool?
 
     var listError: Error?
+    var getError: Error?
+    var getErrorsByID: [String: Error] = [:]
     var startError: Error?
     var stopError: Error?
     var killError: Error?
     var deleteError: Error?
     var listDelay: Duration?
+    var getDelay: Duration?
 
     func list() async throws -> [ContainerSummary] {
         listCallCount += 1
@@ -57,7 +66,18 @@ final class MockContainerService: ContainerServicing, @unchecked Sendable {
     }
 
     func get(id: String) async throws -> ContainerDetail {
-        detail
+        getCallCount += 1
+        lastGetID = id
+        if let getDelay {
+            try await Task.sleep(for: getDelay)
+        }
+        if let error = getErrorsByID[id] ?? getError {
+            throw error
+        }
+        if let detail = detailsByID[id] {
+            return detail
+        }
+        return detail
     }
 
     func create(id: String, image: String, command: [String]) async throws {}
@@ -117,6 +137,51 @@ extension ContainerSummary {
             status: status,
             startedAt: startedAt,
             portSummary: portSummary
+        )
+    }
+}
+
+extension ContainerDetail {
+    static func mock(
+        id: String,
+        image: String = "alpine:latest",
+        status: ContainerRuntimeStatus = .running,
+        createdAt: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        startedAt: Date? = Date(timeIntervalSince1970: 1_700_010_000),
+        exitCode: Int32? = nil,
+        restartCount: Int = 0,
+        ports: [ContainerPortBinding] = [
+            ContainerPortBinding(hostAddress: "0.0.0.0", hostPort: 8080, containerPort: 80, proto: "tcp")
+        ],
+        mounts: [ContainerMount] = [
+            ContainerMount(source: "/host/data", destination: "/data", type: "virtiofs", readOnly: false)
+        ],
+        environment: [ContainerEnvironmentVariable] = [
+            ContainerEnvironmentVariable(key: "SECRET_TOKEN", value: "super-secret")
+        ],
+        networks: [ContainerNetworkAttachment] = [
+            ContainerNetworkAttachment(
+                network: "default",
+                hostname: "app",
+                ipv4Address: "192.168.64.2/24",
+                ipv4Gateway: "192.168.64.1",
+                ipv6Address: nil
+            )
+        ]
+    ) -> ContainerDetail {
+        ContainerDetail(
+            id: id,
+            image: image,
+            status: status,
+            command: ["/bin/sh"],
+            createdAt: createdAt,
+            startedAt: startedAt,
+            exitCode: exitCode,
+            restartCount: restartCount,
+            ports: ports,
+            mounts: mounts,
+            environment: environment,
+            networks: networks
         )
     }
 }

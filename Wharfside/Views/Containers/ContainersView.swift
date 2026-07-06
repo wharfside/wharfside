@@ -2,44 +2,54 @@
 
 import SwiftUI
 
+private enum ContainerListMetrics {
+    static let columnWidth: CGFloat = 460
+    static let topContentInset: CGFloat = 16
+}
+
 struct ContainersView: View {
     @State private var viewModel: ContainerListViewModel
     @FocusState private var isSearchFocused: Bool
 
+    private let service: any ContainerServicing
+
     init(service: any ContainerServicing) {
+        self.service = service
         _viewModel = State(initialValue: ContainerListViewModel(service: service))
     }
 
     var body: some View {
         @Bindable var viewModel = viewModel
 
-        Group {
-            if let error = viewModel.listError {
-                serviceErrorView(error)
-            } else if viewModel.filteredContainers.isEmpty && !viewModel.isInitialLoading {
-                emptyStateView
-            } else {
-                containerList
+        NavigationSplitView(columnVisibility: .constant(.doubleColumn)) {
+            NavigationStack {
+                listColumn
             }
+            .navigationSplitViewColumnWidth(ContainerListMetrics.columnWidth)
+        } detail: {
+            detailColumn
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .navigationSplitViewStyle(.balanced)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .navigationTitle("Containers")
         .searchable(text: $viewModel.searchText, prompt: "Search containers…")
         .focused($isSearchFocused)
         .toolbar { toolbarContent }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if let message = viewModel.actionBannerMessage {
+            if let message = viewModel.actions.actionBannerMessage {
                 ActionErrorBanner(message: message)
             }
         }
         .confirmationDialog(
-            viewModel.pendingConfirmation.map { viewModel.confirmationTitle(for: $0) } ?? "",
+            viewModel.actions.pendingConfirmation.map { viewModel.confirmationTitle(for: $0) } ?? "",
             isPresented: Binding(
-                get: { viewModel.pendingConfirmation != nil },
-                set: { if !$0 { viewModel.pendingConfirmation = nil } }
+                get: { viewModel.actions.pendingConfirmation != nil },
+                set: { if !$0 { viewModel.cancelPendingAction() } }
             ),
             titleVisibility: .visible
         ) {
-            if let action = viewModel.pendingConfirmation {
+            if let action = viewModel.actions.pendingConfirmation {
                 Button(viewModel.destructiveConfirmationLabel(for: action), role: .destructive) {
                     let confirmed = action
                     Task { await viewModel.confirm(confirmed) }
@@ -49,7 +59,7 @@ struct ContainersView: View {
                 }
             }
         } message: {
-            if let action = viewModel.pendingConfirmation {
+            if let action = viewModel.actions.pendingConfirmation {
                 Text(viewModel.confirmationMessage(for: action))
             }
         }
@@ -67,18 +77,62 @@ struct ContainersView: View {
         }
     }
 
-    private var containerList: some View {
-        List(viewModel.filteredContainers, selection: $viewModel.selectedContainerID) { container in
-            ContainerRowView(
-                container: container,
-                isPerformingAction: viewModel.actionInProgressIDs.contains(container.id),
-                onStart: { viewModel.requestStart(id: container.id) },
-                onStop: { viewModel.requestStop(id: container.id) },
-                onKill: { viewModel.requestKill(id: container.id) },
-                onDelete: { viewModel.requestDelete(id: container.id) }
-            )
-            .tag(container.id)
+    @ViewBuilder
+    private var listColumn: some View {
+        Group {
+            if let error = viewModel.listError {
+                serviceErrorView(error)
+            } else if viewModel.filteredContainers.isEmpty && !viewModel.isInitialLoading {
+                emptyStateView
+            } else {
+                containerList
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var detailColumn: some View {
+        if let selectedID = viewModel.selectedContainerID {
+            ContainerDetailView(
+                containerID: selectedID,
+                service: service,
+                onBackToList: { viewModel.selectedContainerID = nil }
+            )
+            .id(selectedID)
+        } else {
+            ContentUnavailableView {
+                Label("No Selection", systemImage: "shippingbox")
+            } description: {
+                Text("Select a container to inspect its configuration.")
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var containerList: some View {
+        VStack(spacing: 0) {
+            Spacer()
+                .frame(height: ContainerListMetrics.topContentInset)
+            List(viewModel.filteredContainers, selection: $viewModel.selectedContainerID) { container in
+                ContainerRowView(
+                    container: container,
+                    isPerformingAction: viewModel.actions.actionInProgressIDs.contains(container.id),
+                    onStart: { viewModel.requestStart(id: container.id) },
+                    onStop: { viewModel.requestStop(id: container.id) },
+                    onKill: { viewModel.requestKill(id: container.id) },
+                    onDelete: { viewModel.requestDelete(id: container.id) }
+                )
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 6, trailing: 12))
+                .listRowSeparator(.hidden)
+                .tag(container.id)
+            }
+            .listStyle(.plain)
+            .listSectionSeparator(.hidden)
+            .scrollContentBackground(.hidden)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Color(nsColor: .windowBackgroundColor))
         .overlay {
             if viewModel.isInitialLoading && viewModel.containers.isEmpty {
                 ProgressView()
@@ -156,7 +210,7 @@ private struct ContainerRowView: View {
     let onDelete: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             statusDot
 
             VStack(alignment: .leading, spacing: 2) {
@@ -168,33 +222,18 @@ private struct ContainerRowView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-
-            Spacer(minLength: 8)
-
-            Text(ContainerSummaryFormatting.uptimeOrExitSummary(
-                status: container.status,
-                startedAt: container.startedAt
-            ))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .frame(minWidth: 56, alignment: .trailing)
-
-            Text(container.portSummary)
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 72, alignment: .trailing)
-                .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
             if isPerformingAction {
                 ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 48)
+                    .controlSize(.regular)
+                    .frame(width: 32, height: 28)
             } else {
-                rowActions
-                    .frame(minWidth: 48, alignment: .trailing)
+                primaryActionButton
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 6)
         .contextMenu { actionButtons }
     }
 
@@ -205,13 +244,6 @@ private struct ContainerRowView: View {
             .accessibilityLabel(container.status == .running ? "Running" : "Stopped")
     }
 
-    private var rowActions: some View {
-        HStack(spacing: 6) {
-            primaryActionButton
-            overflowMenu
-        }
-    }
-
     @ViewBuilder
     private var primaryActionButton: some View {
         if container.status == .stopped {
@@ -219,29 +251,6 @@ private struct ContainerRowView: View {
         } else if container.status == .running || container.status == .stopping {
             actionButton("Stop", systemImage: "stop.fill", action: onStop)
         }
-    }
-
-    private var overflowMenu: some View {
-        Menu {
-            overflowMenuButtons
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
-        }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .help("More actions")
-    }
-
-    @ViewBuilder
-    private var overflowMenuButtons: some View {
-        if container.status == .running || container.status == .stopping {
-            Button("Kill", systemImage: "bolt.fill", action: onKill)
-        }
-        Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
     }
 
     @ViewBuilder
@@ -262,26 +271,6 @@ private struct ContainerRowView: View {
             .buttonStyle(.borderless)
             .labelStyle(.iconOnly)
             .help(title)
-    }
-}
-
-// MARK: - Banner
-
-private struct ActionErrorBanner: View {
-    let message: String
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            Text(message)
-                .font(.callout)
-                .lineLimit(2)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(.orange.opacity(0.12))
     }
 }
 

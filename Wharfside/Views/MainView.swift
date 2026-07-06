@@ -14,7 +14,9 @@ struct MainView: View {
             Sidebar(selection: $appState.selectedSection)
         } detail: {
             detailView(for: appState.selectedSection)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .navigationSplitViewStyle(.balanced)
         .navigationTitle(appState.selectedSection.rawValue)
         .toolbar {
             ToolbarItem(placement: .status) {
@@ -47,6 +49,7 @@ struct MainView: View {
             )
         case .containers:
             ContainersView(service: appState.containerService)
+                .id(NavigationSection.containers)
         case .images:
             PlaceholderView(
                 section: section,
