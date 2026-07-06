@@ -2,6 +2,10 @@
 
 import SwiftUI
 
+private enum SidebarMetrics {
+    static let width: CGFloat = 160
+}
+
 struct Sidebar: View {
     @Binding var selection: NavigationSection
 
@@ -11,7 +15,7 @@ struct Sidebar: View {
                 Label(section.rawValue, systemImage: section.systemImage)
             }
         }
-        .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
+        .navigationSplitViewColumnWidth(SidebarMetrics.width)
         .listStyle(.sidebar)
     }
 }
@@ -47,5 +51,5 @@ struct SettingsPlaceholderView: View {
 
 #Preview {
     Sidebar(selection: .constant(.containers))
-        .frame(width: 220, height: 400)
+        .frame(width: SidebarMetrics.width, height: 400)
 }

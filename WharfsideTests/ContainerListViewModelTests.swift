@@ -81,10 +81,16 @@ struct ContainerListViewModelTests {
         viewModel.requestStart(id: "app")
         try? await Task.sleep(for: .milliseconds(20))
 
-        #expect(viewModel.actionInProgressIDs.contains("app"))
+        #expect(viewModel.actions.actionInProgressIDs.contains("app"))
+        #expect(viewModel.actions.pendingDisplayByID["app"] == .starting)
+        #expect(viewModel.listStatusSummary(for: service.summaries[0]) == "Starting…")
 
         await viewModel.refresh()
-        #expect(viewModel.actionInProgressIDs.isEmpty)
+        #expect(viewModel.actions.actionInProgressIDs.contains("app"))
+
+        service.summaries = [ContainerSummary.mock(id: "app", image: "alpine", status: .running)]
+        await viewModel.refresh()
+        #expect(viewModel.actions.actionInProgressIDs.isEmpty)
         #expect(service.startCallCount == 1)
     }
 
@@ -95,11 +101,11 @@ struct ContainerListViewModelTests {
         await viewModel.refresh()
 
         viewModel.requestStop(id: "app")
-        #expect(viewModel.pendingConfirmation == .stop("app"))
+        #expect(viewModel.actions.pendingConfirmation == .stop("app"))
         #expect(service.stopCallCount == 0)
 
         viewModel.cancelPendingAction()
-        #expect(viewModel.pendingConfirmation == nil)
+        #expect(viewModel.actions.pendingConfirmation == nil)
         #expect(service.stopCallCount == 0)
 
         viewModel.requestDelete(id: "app")
@@ -115,7 +121,7 @@ struct ContainerListViewModelTests {
         let viewModel = ContainerListViewModel(service: service)
         await viewModel.refresh()
 
-        viewModel.pendingConfirmation = nil
+        viewModel.actions.pendingConfirmation = nil
         await viewModel.confirm(.stop("app"))
 
         #expect(service.stopCallCount == 1)
@@ -143,7 +149,7 @@ struct ContainerListViewModelTests {
         viewModel.requestStart(id: "app")
         try? await Task.sleep(for: .milliseconds(20))
 
-        #expect(viewModel.actionBannerMessage == "container is already running")
-        #expect(!viewModel.actionInProgressIDs.contains("app"))
+        #expect(viewModel.actions.actionBannerMessage == "container is already running")
+        #expect(!viewModel.actions.actionInProgressIDs.contains("app"))
     }
 }
