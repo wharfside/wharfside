@@ -24,12 +24,10 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .running)
-        try? await Task.sleep(for: .milliseconds(80))
-        #expect(viewModel.isStreamActive)
+        #expect(await TestPolling.waitUntil { viewModel.isStreamActive })
 
         viewModel.stop()
-        try? await Task.sleep(for: .milliseconds(80))
-        #expect(!viewModel.isStreamActive)
+        #expect(await TestPolling.waitUntil { !viewModel.isStreamActive })
     }
 
     @Test func searchFiltersLiveAppendedLines() async {
@@ -44,7 +42,12 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .running)
-        try? await Task.sleep(for: .milliseconds(80))
+        #expect(await TestPolling.waitUntil {
+            viewModel.displayRows.contains { row in
+                if case .line(let line) = row { return line.text == "ERROR boom" }
+                return false
+            }
+        })
 
         viewModel.searchText = "boom"
         let rows = viewModel.displayRows.compactMap { row -> String? in
@@ -71,7 +74,12 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .running)
-        try? await Task.sleep(for: .milliseconds(40))
+        #expect(await TestPolling.waitUntil {
+            viewModel.displayRows.contains { row in
+                if case .line(let line) = row { return line.text == "first" }
+                return false
+            }
+        })
 
         #expect(viewModel.isTailPinned)
         #expect(!viewModel.showJumpToLatest)
@@ -79,8 +87,7 @@ struct LogViewModelTests {
         viewModel.userScrolledUp()
         #expect(!viewModel.isTailPinned)
 
-        try? await Task.sleep(for: .milliseconds(80))
-        #expect(viewModel.showJumpToLatest)
+        #expect(await TestPolling.waitUntil { viewModel.showJumpToLatest })
 
         viewModel.jumpToLatest()
         #expect(viewModel.isTailPinned)
@@ -98,9 +105,8 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .stopped)
-        try? await Task.sleep(for: .milliseconds(80))
+        #expect(await TestPolling.waitUntil { viewModel.isStreamFinished })
 
-        #expect(viewModel.isStreamFinished)
         #expect(viewModel.displayRows.contains(.stoppedCap))
         #expect(viewModel.displayRows.compactMap { row -> String? in
             guard case .line(let line) = row else { return nil }
@@ -122,12 +128,10 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .stopped)
-        try? await Task.sleep(for: .milliseconds(80))
-        #expect(service.logStreamCallCount == 1)
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 1 })
 
         viewModel.updateContainerStatus(.running)
-        try? await Task.sleep(for: .milliseconds(120))
-        #expect(service.logStreamCallCount >= 2)
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount >= 2 })
 
         let texts = viewModel.displayRows.compactMap { row -> String? in
             guard case .line(let line) = row else { return nil }
@@ -147,7 +151,7 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .stopped)
-        try? await Task.sleep(for: .milliseconds(80))
+        #expect(await TestPolling.waitUntil { !viewModel.recentEntries(window: .seconds(60)).isEmpty })
 
         let entries = viewModel.recentEntries(window: .seconds(60))
         #expect(entries.count == 1)
@@ -171,8 +175,7 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .running)
-        try? await Task.sleep(for: .milliseconds(80))
-        #expect(!viewModel.displayRows.isEmpty)
+        #expect(await TestPolling.waitUntil { !viewModel.displayRows.isEmpty })
 
         viewModel.clearDisplay()
         #expect(viewModel.displayRows.isEmpty)
@@ -191,13 +194,12 @@ struct LogViewModelTests {
 
         let viewModel = LogViewModel(containerID: "app", service: service)
         viewModel.start(containerStatus: .running)
-        try? await Task.sleep(for: .milliseconds(80))
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 1 })
         let initialCalls = service.logStreamCallCount
 
         viewModel.sourceFilter = .boot
-        try? await Task.sleep(for: .milliseconds(80))
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount > initialCalls })
 
-        #expect(service.logStreamCallCount > initialCalls)
         #expect(service.lastLogStreamSource == .boot)
     }
 }
