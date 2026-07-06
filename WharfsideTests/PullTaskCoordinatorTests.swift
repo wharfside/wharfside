@@ -17,9 +17,8 @@ struct PullTaskCoordinatorTests {
 
         coordinator.startPull(reference: "alpine:latest")
         #expect(coordinator.activePulls.count == 1)
-        try? await Task.sleep(for: .milliseconds(80))
+        #expect(await TestPolling.waitUntil { coordinator.activePulls.isEmpty })
 
-        #expect(coordinator.activePulls.isEmpty)
         #expect(service.pullCallCount == 1)
         #expect(refreshCount == 1)
     }
@@ -32,9 +31,8 @@ struct PullTaskCoordinatorTests {
         coordinator.onPullFailed = { bannerMessage = $0 }
 
         coordinator.startPull(reference: "bogus:missing")
-        try? await Task.sleep(for: .milliseconds(30))
+        #expect(await TestPolling.waitUntil { coordinator.activePulls.isEmpty })
 
-        #expect(coordinator.activePulls.isEmpty)
         #expect(bannerMessage == "manifest unknown")
         #expect(coordinator.recentFailures.count == 1)
         #expect(coordinator.recentFailures.first?.reference == "bogus:missing")
@@ -49,9 +47,9 @@ struct PullTaskCoordinatorTests {
         coordinator.startPull(reference: "redis:7")
         #expect(coordinator.activePulls.count == 2)
 
-        try? await Task.sleep(for: .milliseconds(120))
-        #expect(service.pullCallCount == 2)
-        #expect(coordinator.activePulls.isEmpty)
+        #expect(await TestPolling.waitUntil {
+            service.pullCallCount == 2 && coordinator.activePulls.isEmpty
+        })
     }
 
     @Test func duplicatePullShowsNoticeWithoutSecondTask() async {
@@ -85,12 +83,11 @@ struct PullTaskCoordinatorTests {
 
         let coordinator = PullTaskCoordinator(service: service)
         coordinator.startPull(reference: "alpine:latest")
-        try? await Task.sleep(for: .milliseconds(10))
+        #expect(await TestPolling.waitUntil {
+            coordinator.activePulls.first?.progress?.description == "layer 1"
+        })
 
-        #expect(coordinator.activePulls.first?.progress?.description == "layer 1")
-
-        try? await Task.sleep(for: .milliseconds(30))
-        #expect(coordinator.activePulls.isEmpty)
+        #expect(await TestPolling.waitUntil { coordinator.activePulls.isEmpty })
     }
 }
 
