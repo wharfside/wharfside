@@ -46,7 +46,7 @@ struct LogParseContext {
       options: .caseInsensitive
     )
     postgresLevel = Self.regex(
-      #"^(LOG|INFO|NOTICE|WARNING|ERROR|FATAL|PANIC|DETAIL|HINT):\s+(.*)$"#,
+      #"^(DEBUG|LOG|INFO|NOTICE|WARNING|ERROR|FATAL|PANIC|DETAIL|HINT):\s+(.*)$"#,
       options: .caseInsensitive
     )
     jvmLevel = Self.regex(

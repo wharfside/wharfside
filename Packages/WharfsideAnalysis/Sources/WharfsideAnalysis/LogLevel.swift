@@ -37,6 +37,24 @@ public enum LogLevel: String, Sendable, Equatable, CaseIterable, Comparable {
         lhs.severityRank < rhs.severityRank
     }
 
+    /// Maps Postgres severity keywords (`LOG`, `FATAL`, `PANIC`, etc.).
+    private static let postgresLevels: [String: LogLevel] = [
+        "PANIC": .error,
+        "FATAL": .error,
+        "ERROR": .error,
+        "WARNING": .warn,
+        "NOTICE": .info,
+        "LOG": .info,
+        "INFO": .info,
+        "DEBUG": .debug,
+        "DETAIL": .debug,
+        "HINT": .debug
+    ]
+
+    public static func fromPostgres(_ raw: String) -> LogLevel {
+        postgresLevels[raw.uppercased()] ?? .unknown
+    }
+
     /// Maps common level strings from JSON, logfmt, syslog, JVM, Postgres, etc.
     public static func from(_ raw: String) -> LogLevel {
         let normalized = raw

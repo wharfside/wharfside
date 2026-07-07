@@ -37,6 +37,11 @@ public struct PromptRenderer: Sendable {
             sections.append(firstError)
         }
 
+        if let lastError = digest.lastError {
+            sections.append("LAST_ERROR:")
+            sections.append(lastError)
+        }
+
         if !digest.topPatterns.isEmpty {
             sections.append("TOP_PATTERNS:")
             for (index, pattern) in digest.topPatterns.enumerated() {
