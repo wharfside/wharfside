@@ -1,6 +1,7 @@
 // Views/Containers/ContainersView.swift
 
 import SwiftUI
+import WharfsideAnalysis
 
 private enum ContainerListMetrics {
     static let columnWidth: CGFloat = 460

@@ -1,0 +1,53 @@
+@boot
+container: starting runtime bootstrap
+vminitd: version 1.0.0 starting
+vminitd: loading container configuration
+vminitd: memory threshold for process monitor set to 512 MiB
+vminitd: cgroup v2 enabled
+vminitd: mounting root filesystem
+vminitd: applying seccomp profile
+vminitd: network namespace created
+vminitd: setting up loopback interface
+vminitd: virtio-fs mount ready
+vminitd: spawning init process
+vminitd: memory threshold for init set to 256 MiB
+vminitd: process monitor active
+vminitd: health check interval 2s
+vminitd: stdio pipes connected
+vminitd: boot log capture enabled
+vminitd: runtime API socket listening
+vminitd: forwarding dynamic environment
+vminitd: image layers verified
+vminitd: entrypoint resolved
+vminitd: working directory set to /
+vminitd: user namespace mapped
+vminitd: capabilities dropped
+vminitd: no-new-privileges applied
+vminitd: memory threshold for sidecar set to 128 MiB
+vminitd: sidecar process started
+vminitd: DNS resolver configured
+vminitd: hosts file injected
+vminitd: resolv.conf mounted
+vminitd: timezone UTC
+vminitd: locale C.UTF-8
+vminitd: rlimits applied
+vminitd: OOM score adjusted
+vminitd: memory threshold for monitor set to 64 MiB
+vminitd: pid 1 started
+vminitd: waiting for init readiness
+vminitd: init signaled ready
+vminitd: forwarding stdio streams
+vminitd: memory threshold exceeded by vminitd (current=520 MiB limit=512 MiB)
+vminitd: memory threshold warning suppressed
+vminitd: process monitor tick
+vminitd: memory threshold for worker set to 96 MiB
+vminitd: worker heartbeat ok
+vminitd: memory threshold check passed
+vminitd: runtime heartbeat ok
+vminitd: container state running
+vminitd: helper started
+vminitd: cache warmed
+vminitd: handing off to application
+@stdio
+head: invalid number '10M'
+ERROR: No space left on device

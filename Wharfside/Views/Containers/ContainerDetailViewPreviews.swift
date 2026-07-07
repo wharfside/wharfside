@@ -1,6 +1,7 @@
 // Views/Containers/ContainerDetailViewPreviews.swift
 
 import SwiftUI
+import WharfsideAnalysis
 
 #if DEBUG
 #Preview {

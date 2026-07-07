@@ -88,7 +88,15 @@ struct LogRingBuffer: Sendable {
         let cutoff = now.addingTimeInterval(-window.timeInterval)
         return lines
             .filter { $0.receivedAt >= cutoff }
-            .map(\.entry)
+            .map { line in
+                LogEntry(
+                    timestamp: line.entry.timestamp,
+                    level: line.entry.level,
+                    message: line.entry.message,
+                    raw: line.entry.raw,
+                    source: line.source
+                )
+            }
     }
 
     private mutating func appendLine(_ line: String, source: LogSource, receivedAt: Date) {

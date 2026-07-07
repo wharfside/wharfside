@@ -1,0 +1,7 @@
+@boot
+container: starting runtime bootstrap
+vminitd: loading container configuration
+vminitd: mounting root filesystem
+vminitd: failed to mount overlay at /: permission denied
+ERROR: cannot start container init: rootfs mount failed
+FATAL: container bootstrap aborted

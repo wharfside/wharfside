@@ -1,6 +1,7 @@
 // Models/LogViewSourceFilter.swift
 
 import Foundation
+import WharfsideAnalysis
 
 enum LogViewSourceFilter: String, CaseIterable, Identifiable, Sendable {
     case stdio

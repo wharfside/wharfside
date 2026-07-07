@@ -30,17 +30,17 @@ struct DiagnosisCardViewModelTests {
     }
 
     @Test func idleToRunningToResult() async throws {
-        let session = StubDiagnosisSession(mode: .emit(sampleDiagnosis))
+        let session = StubDiagnosisSession(mode: .emit(cardSampleDiagnosis))
         let viewModel = makeViewModel(session: session)
         viewModel.updateContainer(stoppedContainer(id: "app"))
 
         viewModel.explain()
         #expect(viewModel.isRunning)
 
-        try await TestPolling.waitUntil {
+        #expect(await TestPolling.waitUntil {
             if case .result = viewModel.phase { return true }
             return false
-        }
+        })
 
         if case .result(let state) = viewModel.phase {
             #expect(state.result.diagnosis.summary == cardSampleDiagnosis.summary)
@@ -63,10 +63,10 @@ struct DiagnosisCardViewModelTests {
         viewModel.updateContainer(stoppedContainer(id: "db"))
 
         viewModel.explain()
-        try await TestPolling.waitUntil {
+        #expect(await TestPolling.waitUntil {
             if case .result = viewModel.phase { return true }
             return false
-        }
+        })
 
         if case .result(let state) = viewModel.phase {
             #expect(state.result.wasDegraded)
@@ -81,10 +81,10 @@ struct DiagnosisCardViewModelTests {
         viewModel.updateContainer(stoppedContainer(id: "app"))
 
         viewModel.explain()
-        try await TestPolling.waitUntil {
+        #expect(await TestPolling.waitUntil {
             if case .failed = viewModel.phase { return true }
             return false
-        }
+        })
 
         if case .failed(let message) = viewModel.phase {
             #expect(message.contains("timed out"))
@@ -125,10 +125,10 @@ struct DiagnosisCardViewModelTests {
         viewModel.updateContainer(stoppedContainer(id: "app"))
 
         viewModel.explain()
-        try await TestPolling.waitUntil {
+        #expect(await TestPolling.waitUntil {
             if case .result = viewModel.phase { return true }
             return false
-        }
+        })
 
         viewModel.regenerate()
         if case .running = viewModel.phase {
@@ -137,12 +137,12 @@ struct DiagnosisCardViewModelTests {
             Issue.record("Expected running after regenerate")
         }
 
-        try await TestPolling.waitUntil {
+        #expect(await TestPolling.waitUntil {
             if case .result(let state) = viewModel.phase {
                 return state.result.diagnosis.summary == "Second opinion"
             }
             return false
-        }
+        })
     }
 
     @Test func usesBufferedEntriesBeforeColdFetch() async throws {
@@ -152,10 +152,10 @@ struct DiagnosisCardViewModelTests {
         viewModel.updateContainer(stoppedContainer(id: "app"))
 
         viewModel.explain()
-        try await TestPolling.waitUntil {
+        #expect(await TestPolling.waitUntil {
             if case .result = viewModel.phase { return true }
             return false
-        }
+        })
 
         #expect(session.lastPrompt?.contains("connection refused") == true)
     }
@@ -187,7 +187,7 @@ struct DiagnosisCardViewModelTests {
             containerID: "app",
             diagnosisService: service,
             containerService: containerService,
-            logEntriesProvider: { [] }
+            logEntriesProvider: { cardSampleEntries() }
         )
     }
 }
