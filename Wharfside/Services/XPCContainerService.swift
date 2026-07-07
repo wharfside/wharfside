@@ -4,6 +4,7 @@ import ContainerAPIClient
 import ContainerResource
 import Containerization
 import Foundation
+import WharfsideAnalysis
 
 /// XPC-backed container operations via `ContainerClient`.
 ///

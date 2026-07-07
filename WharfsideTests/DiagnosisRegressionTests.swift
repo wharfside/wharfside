@@ -88,11 +88,16 @@ struct DiagnosisRegressionFixture: Sendable {
   let logFile: String
   let container: ContainerDetail
   let expectedCategories: Set<FailureCategory>
+  let labeledSources: Bool
+  let mustNotMention: [String]
   let extraValidation: @Sendable (ContainerDiagnosis) -> Bool
 
   var entries: [LogEntry] {
     let url = Self.fixturesDirectory.appendingPathComponent(logFile)
     let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+    if labeledSources {
+      return LabeledFixtureParser.parse(text: text)
+    }
     return LogParser().parse(text: text)
   }
 
@@ -114,6 +119,14 @@ struct DiagnosisRegressionFixture: Sendable {
     guard expectedCategories.contains(diagnosis.category) else { return false }
     guard !diagnosis.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
     guard !diagnosis.suggestedActions.isEmpty, diagnosis.suggestedActions.count <= 4 else { return false }
+
+    let blob = ([diagnosis.summary] + diagnosis.suggestedActions)
+      .joined(separator: " ")
+      .lowercased()
+    for term in mustNotMention where blob.contains(term.lowercased()) {
+      return false
+    }
+
     return extraValidation(diagnosis)
   }
 
@@ -123,6 +136,24 @@ struct DiagnosisRegressionFixture: Sendable {
       .deletingLastPathComponent()
       .appendingPathComponent("Packages/WharfsideAnalysis/Tests/Fixtures")
   }()
+
+  init(
+    name: String,
+    logFile: String,
+    container: ContainerDetail,
+    expectedCategories: Set<FailureCategory>,
+    labeledSources: Bool = false,
+    mustNotMention: [String] = [],
+    extraValidation: @escaping @Sendable (ContainerDiagnosis) -> Bool = { _ in true }
+  ) {
+    self.name = name
+    self.logFile = logFile
+    self.container = container
+    self.expectedCategories = expectedCategories
+    self.labeledSources = labeledSources
+    self.mustNotMention = mustNotMention
+    self.extraValidation = extraValidation
+  }
 
   static let all: [DiagnosisRegressionFixture] = [
     DiagnosisRegressionFixture(
@@ -186,6 +217,27 @@ struct DiagnosisRegressionFixture: Sendable {
       container: stoppedContainer(id: "java", image: "app:jvm"),
       expectedCategories: [.applicationBug, .configuration],
       extraValidation: { _ in true }
+    ),
+    DiagnosisRegressionFixture(
+      name: "boot_noise_contamination",
+      logFile: "boot_noise_contamination.log",
+      container: stoppedContainer(id: "crashy", image: "crashy:latest"),
+      expectedCategories: [.configuration],
+      labeledSources: true,
+      mustNotMention: ["vminitd", "memory threshold", "out of memory", "oom", "insufficient memory"],
+      extraValidation: { diagnosis in
+        let summary = diagnosis.summary.lowercased()
+        let actions = diagnosis.suggestedActions.joined(separator: " ").lowercased()
+        return summary.contains("disk") || summary.contains("space")
+          || actions.contains("disk") || actions.contains("space")
+      }
+    ),
+    DiagnosisRegressionFixture(
+      name: "boot_only_crash",
+      logFile: "boot_only_crash.log",
+      container: stoppedContainer(id: "init-fail", image: "broken:latest"),
+      expectedCategories: [.imageOrRuntime, .configuration, .unknown],
+      labeledSources: true
     )
   ]
 }

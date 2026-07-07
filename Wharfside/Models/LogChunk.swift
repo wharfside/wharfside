@@ -1,11 +1,7 @@
 // Models/LogChunk.swift
 
 import Foundation
-
-enum LogSource: String, Sendable, Hashable {
-    case stdio
-    case boot
-}
+import WharfsideAnalysis
 
 struct LogChunk: Sendable, Hashable {
     let source: LogSource

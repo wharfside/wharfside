@@ -1,6 +1,7 @@
 // Views/Containers/ContainersView.swift
 
 import SwiftUI
+import WharfsideAnalysis
 
 private enum ContainerListMetrics {
     static let columnWidth: CGFloat = 460
@@ -9,6 +10,7 @@ private enum ContainerListMetrics {
 
 struct ContainersView: View {
     @Environment(AppState.self) private var appState
+    @Environment(AIAvailabilityService.self) private var aiAvailability
     @State private var viewModel: ContainerListViewModel
     @FocusState private var isSearchFocused: Bool
 
@@ -100,6 +102,8 @@ struct ContainersView: View {
             ContainerDetailView(
                 containerID: selectedID,
                 service: service,
+                lifecycleObserver: appState.lifecycleObserver,
+                availability: aiAvailability,
                 onBackToList: { viewModel.selectedContainerID = nil }
             )
             .id(selectedID)

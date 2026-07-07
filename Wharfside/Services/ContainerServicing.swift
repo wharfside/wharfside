@@ -1,6 +1,7 @@
 // Services/ContainerServicing.swift
 
 import Foundation
+import WharfsideAnalysis
 
 protocol ContainerServicing: Sendable {
     func list() async throws -> [ContainerSummary]

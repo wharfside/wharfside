@@ -53,6 +53,16 @@ struct LogRingBufferTests {
         let entries = buffer.recentEntries(within: .seconds(100), now: recentDate)
         #expect(entries.count == 1)
         #expect(entries.first?.raw == "new")
+        #expect(entries.first?.source == .stdio)
+    }
+
+    @Test func recentEntriesPreservesSource() {
+        var buffer = LogRingBuffer()
+        buffer.append(chunk: LogChunk(source: .boot, data: Data("boot line\n".utf8)))
+
+        let entries = buffer.recentEntries(within: .seconds(3600))
+        #expect(entries.count == 1)
+        #expect(entries.first?.source == .boot)
     }
 
     @Test func sourceFilterExcludesOtherHandles() {

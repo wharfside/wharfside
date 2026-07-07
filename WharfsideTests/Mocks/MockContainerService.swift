@@ -1,6 +1,7 @@
 // WharfsideTests/Mocks/MockContainerService.swift
 
 import Foundation
+import WharfsideAnalysis
 @testable import Wharfside
 
 final class MockContainerService: ContainerServicing, @unchecked Sendable {

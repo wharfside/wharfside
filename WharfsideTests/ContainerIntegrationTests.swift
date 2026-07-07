@@ -2,6 +2,7 @@
 
 import Foundation
 import Testing
+import WharfsideAnalysis
 @testable import Wharfside
 
 /// Live-daemon integration tests. Skipped in CI unless `WHARFSIDE_INTEGRATION=1`.

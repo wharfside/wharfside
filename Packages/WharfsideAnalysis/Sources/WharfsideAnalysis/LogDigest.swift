@@ -36,6 +36,10 @@ public struct LogDigest: Sendable, Equatable {
     public let lastError: String?
     public let lastLines: [String]
     public let restartCount: Int
+    /// Demoted boot-log tail when application (stdio) output is also present.
+    public let bootLines: [String]
+    /// Optional note when digest is boot-only (no stdio application output).
+    public let sourceNote: String?
     /// Whether error volume in the recent window exceeds the preceding baseline.
     public let errorSpikeDetected: Bool
     /// Approximate token count of the rendered prompt (`PromptRenderer`), using chars / 4.
@@ -52,6 +56,8 @@ public struct LogDigest: Sendable, Equatable {
         lastError: String?,
         lastLines: [String],
         restartCount: Int,
+        bootLines: [String] = [],
+        sourceNote: String? = nil,
         errorSpikeDetected: Bool = false,
         estimatedTokens: Int = 0
     ) {
@@ -65,6 +71,8 @@ public struct LogDigest: Sendable, Equatable {
         self.lastError = lastError
         self.lastLines = lastLines
         self.restartCount = restartCount
+        self.bootLines = bootLines
+        self.sourceNote = sourceNote
         self.errorSpikeDetected = errorSpikeDetected
         self.estimatedTokens = estimatedTokens
     }

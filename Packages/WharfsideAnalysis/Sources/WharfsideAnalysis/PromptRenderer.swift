@@ -6,11 +6,14 @@ public struct PromptRenderer: Sendable {
 
     /// Produces a deterministic, labeled plain-text block (no markdown).
     public func render(_ digest: LogDigest) -> String {
-        let timestampFormatter = ISO8601DateFormatter()
-        timestampFormatter.formatOptions = [.withInternetDateTime]
-
         var sections: [String] = []
+        appendHeaderSections(for: digest, to: &sections)
+        appendEvidenceSections(for: digest, to: &sections)
+        appendTailSections(for: digest, to: &sections)
+        return sections.joined(separator: "\n")
+    }
 
+    private func appendHeaderSections(for digest: LogDigest, to sections: inout [String]) {
         sections.append("CONTAINER: \(digest.containerName)")
         sections.append("IMAGE: \(digest.image)")
         if let exitCode = digest.exitCode {
@@ -18,6 +21,9 @@ public struct PromptRenderer: Sendable {
         }
         sections.append("WINDOW: \(digest.windowDescription)")
         sections.append("RESTARTS: \(digest.restartCount)")
+        if let sourceNote = digest.sourceNote {
+            sections.append("SOURCE: \(sourceNote)")
+        }
 
         let countLine = digest.counts
             .sorted { $0.key < $1.key }
@@ -31,7 +37,9 @@ public struct PromptRenderer: Sendable {
         if digest.errorSpikeDetected {
             sections.append("ERROR_SPIKE: yes")
         }
+    }
 
+    private func appendEvidenceSections(for digest: LogDigest, to sections: inout [String]) {
         if let firstError = digest.firstError {
             sections.append("FIRST_ERROR:")
             sections.append(firstError)
@@ -44,6 +52,8 @@ public struct PromptRenderer: Sendable {
 
         if !digest.topPatterns.isEmpty {
             sections.append("TOP_PATTERNS:")
+            let timestampFormatter = ISO8601DateFormatter()
+            timestampFormatter.formatOptions = [.withInternetDateTime]
             for (index, pattern) in digest.topPatterns.enumerated() {
                 let first = timestampFormatter.string(from: pattern.firstSeen)
                 let last = timestampFormatter.string(from: pattern.lastSeen)
@@ -52,12 +62,17 @@ public struct PromptRenderer: Sendable {
                 )
             }
         }
+    }
 
+    private func appendTailSections(for digest: LogDigest, to sections: inout [String]) {
         if !digest.lastLines.isEmpty {
             sections.append("LAST_LINES:")
             sections.append(contentsOf: digest.lastLines)
         }
 
-        return sections.joined(separator: "\n")
+        if !digest.bootLines.isEmpty {
+            sections.append("BOOT_LOG (runtime init, usually not the app's crash cause):")
+            sections.append(contentsOf: digest.bootLines)
+        }
     }
 }
