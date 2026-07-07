@@ -33,6 +33,7 @@ public struct LogDigest: Sendable, Equatable {
     public let counts: [String: Int]
     public let topPatterns: [LogPattern]
     public let firstError: String?
+    public let lastError: String?
     public let lastLines: [String]
     public let restartCount: Int
     /// Whether error volume in the recent window exceeds the preceding baseline.
@@ -48,6 +49,7 @@ public struct LogDigest: Sendable, Equatable {
         counts: [String: Int],
         topPatterns: [LogPattern],
         firstError: String?,
+        lastError: String?,
         lastLines: [String],
         restartCount: Int,
         errorSpikeDetected: Bool = false,
@@ -60,6 +62,7 @@ public struct LogDigest: Sendable, Equatable {
         self.counts = counts
         self.topPatterns = topPatterns
         self.firstError = firstError
+        self.lastError = lastError
         self.lastLines = lastLines
         self.restartCount = restartCount
         self.errorSpikeDetected = errorSpikeDetected

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Parses raw log lines into structured `LogEntry` values. Never drops lines or throws.
+/// Parses raw log lines into structured `LogEntry` values. Skips blank lines; never throws.
 public struct LogParser: Sendable {
   public init() {}
 
@@ -17,6 +17,10 @@ public struct LogParser: Sendable {
     entries.reserveCapacity(lines.count)
 
     for line in lines {
+      if line.trimmingCharacters(in: .whitespaces).isEmpty {
+        continue
+      }
+
       if isContinuationLine(line), var previous = entries.popLast() {
         let mergedRaw = previous.raw + "\n" + line
         let mergedMessage = previous.message + "\n" + line.trimmingCharacters(in: .whitespaces)

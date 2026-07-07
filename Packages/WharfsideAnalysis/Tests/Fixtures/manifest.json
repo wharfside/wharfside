@@ -29,12 +29,12 @@
     {
       "file": "mixed_json_plaintext.log",
       "description": "Mixed JSON app logs and plaintext boot noise",
-      "levelCounts": { "ERROR": 1, "INFO": 1, "UNKNOWN": 4 }
+      "levelCounts": { "ERROR": 1, "INFO": 1, "UNKNOWN": 3 }
     },
     {
       "file": "oom_kill.log",
       "description": "Container OOM killed",
-      "levelCounts": { "ERROR": 2, "INFO": 2, "UNKNOWN": 2 }
+      "levelCounts": { "ERROR": 2, "INFO": 2, "UNKNOWN": 1 }
     },
     {
       "file": "silent_exit.log",
@@ -43,8 +43,8 @@
     },
     {
       "file": "empty.log",
-      "description": "Empty log file (blank line preserved)",
-      "levelCounts": { "UNKNOWN": 1 }
+      "description": "Empty log file (blank lines skipped)",
+      "levelCounts": {}
     },
     {
       "file": "single_line.log",

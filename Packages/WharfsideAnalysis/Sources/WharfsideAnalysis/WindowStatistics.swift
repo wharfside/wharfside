@@ -4,17 +4,20 @@ import Foundation
 public struct WindowStatistics: Sendable, Equatable {
     public let counts: [String: Int]
     public let firstError: String?
+    public let lastError: String?
     public let lastLines: [String]
     public let errorSpikeDetected: Bool
 
     public init(
         counts: [String: Int],
         firstError: String?,
+        lastError: String?,
         lastLines: [String],
         errorSpikeDetected: Bool
     ) {
         self.counts = counts
         self.firstError = firstError
+        self.lastError = lastError
         self.lastLines = lastLines
         self.errorSpikeDetected = errorSpikeDetected
     }
@@ -28,13 +31,16 @@ public struct WindowStatistics: Sendable, Equatable {
     ) -> WindowStatistics {
         let filtered = filter(entries: entries, window: window)
         let counts = severityCounts(for: filtered)
-        let firstError = filtered.first(where: { $0.level == .error })?.raw
+        let errorEntries = filtered.filter { $0.level == .error }
+        let firstError = errorEntries.first?.raw
+        let lastError = errorEntries.last?.raw
         let lastLines = Array(filtered.suffix(lastLinesCount).map(\.raw))
         let spike = detectErrorSpike(in: filtered, config: spikeConfig)
 
         return WindowStatistics(
             counts: counts,
             firstError: firstError,
+            lastError: lastError,
             lastLines: lastLines,
             errorSpikeDetected: spike
         )

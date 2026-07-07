@@ -169,15 +169,7 @@ extension LogParser {
 
   func extractPostgresLevel(from line: String, context: LogParseContext) -> (LogLevel, String)? {
     guard let match = regexMatch(context.postgresLevel, in: line, groupCount: 2) else { return nil }
-    let token = match[0].uppercased()
-    let level: LogLevel = switch token {
-    case "FATAL", "PANIC", "ERROR": .error
-    case "WARNING": .warn
-    case "NOTICE", "INFO", "LOG": .info
-    case "DETAIL", "HINT": .debug
-    default: .unknown
-    }
-    return (level, match[1])
+    return (LogLevel.fromPostgres(match[0]), match[1])
   }
 
   func extractJVMLevel(from line: String, context: LogParseContext) -> (LogLevel, String)? {

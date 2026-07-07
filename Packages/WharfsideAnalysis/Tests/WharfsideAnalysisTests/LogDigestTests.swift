@@ -19,6 +19,7 @@ import Testing
         counts: ["ERROR": 3, "INFO": 10],
         topPatterns: [pattern],
         firstError: "ERROR connect ECONNREFUSED 127.0.0.1:5432",
+        lastError: "ERROR connect ECONNREFUSED 127.0.0.1:5432",
         lastLines: ["ERROR connect ECONNREFUSED 127.0.0.1:5432"],
         restartCount: 2,
         estimatedTokens: 120
