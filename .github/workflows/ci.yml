@@ -133,6 +133,9 @@ jobs:
           # with SPM package targets (SwiftProtobuf, swift-crypto, etc.) that still
           # expect Apple Development. Empty PROVISIONING_PROFILE_SPECIFIER is correct
           # for Developer ID (no profile).
+          # CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO is required because `xcodebuild build`
+          # (unlike `archive`/export) auto-injects the com.apple.security.get-task-allow
+          # debug entitlement, which the Apple notary service always rejects.
           xcodebuild build \
             -project Wharfside.xcodeproj \
             -scheme Wharfside \
@@ -143,6 +146,7 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
             OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
             | xcbeautify --renderer github-actions
 
