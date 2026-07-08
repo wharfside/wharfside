@@ -310,12 +310,12 @@ private struct TagSheetTarget: Identifiable {
     var id: String { reference }
 }
 
+#if DEBUG
 #Preview {
     ImagesView(imageService: PreviewImageService(), registryService: PreviewRegistryService())
         .frame(width: 900, height: 500)
 }
 
-#if DEBUG
 private struct PreviewImageService: ImageServicing {
     func list() async throws -> [ImageSummary] {
         [

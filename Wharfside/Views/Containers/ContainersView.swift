@@ -281,12 +281,12 @@ private struct ContainerRowView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     ContainersView(service: MockContainerService(), lifecycleObserver: ContainerLifecycleObserver())
         .frame(width: 900, height: 500)
 }
 
-#if DEBUG
 private struct MockContainerService: ContainerServicing {
     func list() async throws -> [ContainerSummary] { [] }
     func get(id: String) async throws -> ContainerDetail { fatalError() }

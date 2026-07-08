@@ -212,6 +212,7 @@ private struct LogStoppedCapRow: View {
     }
 }
 
+#if DEBUG
 #Preview {
     LogView(
         viewModel: LogViewModel(containerID: "hello", service: PreviewLogService()),
@@ -220,7 +221,6 @@ private struct LogStoppedCapRow: View {
         .frame(width: 700, height: 400)
 }
 
-#if DEBUG
 private struct PreviewLogService: ContainerServicing {
     func list() async throws -> [ContainerSummary] { [] }
     func get(id: String) async throws -> ContainerDetail {
