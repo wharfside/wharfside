@@ -129,14 +129,20 @@ jobs:
           TEAM_ID: ${{ secrets.TEAM_ID }}
         run: |
           set -o pipefail
+          # Manual signing is required: Automatic + Developer ID on the CLI conflicts
+          # with SPM package targets (SwiftProtobuf, swift-crypto, etc.) that still
+          # expect Apple Development. Empty PROVISIONING_PROFILE_SPECIFIER is correct
+          # for Developer ID (no profile).
           xcodebuild build \
             -project Wharfside.xcodeproj \
             -scheme Wharfside \
             -configuration Release \
             -destination 'platform=macOS,arch=arm64' \
             -derivedDataPath build \
+            CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
             OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
             | xcbeautify --renderer github-actions
 
