@@ -181,21 +181,23 @@ import WharfsideAnalysis
   }
 
   @Test func diagnosisFallsBackToBootLogExitWhenRuntimeGone() async throws {
-    let capturing = CapturingDiagnosisSession()
+    let session = StubDiagnosisSession(mode: .emit(sampleDiagnosis))
     let service = LogDiagnosisService(
       availability: StubProvider(sequence: [.full]),
       lifecycleObserver: ContainerLifecycleObserver(),
       containerService: ExitStatusStubContainerService(exitStatus: .unavailable(reason: .runtimeGone)),
-      sessionFactory: capturing
+      sessionFactory: session
     )
 
-    _ = try await service.diagnose(
+    // Full stop signature short-circuits via precheck; exit evidence still comes from boot log.
+    let result = try await service.diagnose(
       container: sampleDetail(),
       entries: userStopBootLogEntries()
     )
 
-    let prompt = try #require(capturing.lastPrompt)
-    #expect(prompt.contains("EXIT_CODE: 137 (from boot log)"))
+    #expect(result.renderedDigest.contains("EXIT_CODE: 137 (from boot log)"))
+    #expect(session.streamCallCount == 0)
+    #expect(result.source == .deterministicPrecheck(ruleID: "precheck.stop-escalation"))
   }
 
   @Test func digestUsesLifecycleRestartCount() async throws {

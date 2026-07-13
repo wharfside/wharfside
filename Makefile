@@ -1,4 +1,14 @@
-.PHONY: build test lint purity ci ai-test
+.PHONY: build test lint purity ci ai-test sign-rulebook verify-rulebook
+
+# Propagate failures from pipelines (xcodebuild | xcbeautify).
+SHELL := /bin/bash
+.SHELLFLAGS := -o pipefail -c
+
+RULEBOOK_JSON_APP := Wharfside/Resources/Rulebook.json
+RULEBOOK_SIG_APP := Wharfside/Resources/Rulebook.json.sig
+RULEBOOK_JSON_PKG := Packages/RulebookCore/Sources/RulebookCore/Resources/Rulebook.json
+RULEBOOK_SIG_PKG := Packages/RulebookCore/Sources/RulebookCore/Resources/Rulebook.json.sig
+RULEBOOK_KEY ?= $(RULEBOOK_SIGNING_KEY)
 
 build:
 	xcodebuild build -project Wharfside.xcodeproj -scheme Wharfside \
@@ -19,7 +29,25 @@ purity:
 	  Packages/RulebookCore/Sources/ \
 	  || (echo "WharfsideAnalysis and RulebookCore must stay pure (AI_INTEGRATION.md §2)"; exit 1)
 
-ci: lint purity build test rulebook-linux
+verify-rulebook:
+	cd Packages/RulebookCore && swift run -c release rulebook-tool verify \
+	  --document ../../$(RULEBOOK_JSON_APP) --sig ../../$(RULEBOOK_SIG_APP)
+	cd Packages/RulebookCore && swift run -c release rulebook-tool verify \
+	  --document Sources/RulebookCore/Resources/Rulebook.json \
+	  --sig Sources/RulebookCore/Resources/Rulebook.json.sig
+	@diff -q $(RULEBOOK_JSON_APP) $(RULEBOOK_JSON_PKG)
+	@diff -q $(RULEBOOK_SIG_APP) $(RULEBOOK_SIG_PKG)
+
+sign-rulebook:
+	@test -n "$(RULEBOOK_KEY)" || (echo "Set RULEBOOK_SIGNING_KEY to absolute path of private key .b64"; exit 1)
+	cd Packages/RulebookCore && swift run -c release rulebook-tool sign \
+	  --key "$(RULEBOOK_KEY)" \
+	  --document Sources/RulebookCore/Resources/Rulebook.json \
+	  --out Sources/RulebookCore/Resources/Rulebook.json.sig
+	cp $(RULEBOOK_SIG_PKG) $(RULEBOOK_SIG_APP)
+	@$(MAKE) verify-rulebook
+
+ci: lint purity verify-rulebook build test rulebook-linux
 
 rulebook-test:
 	cd Packages/RulebookCore && swift test -Xswiftc -warnings-as-errors

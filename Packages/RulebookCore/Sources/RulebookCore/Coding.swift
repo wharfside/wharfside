@@ -45,6 +45,7 @@ extension Rulebook: Codable {
 public enum RulebookError: Error, Equatable, Sendable {
     case unsupportedSchemaVersion(Int)
     case invalidSignature
+    case unknownKeyId(String)
     case malformedDocument
 }
 

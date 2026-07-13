@@ -44,7 +44,7 @@ struct BootLogExitStatusParserTests {
       "info vminitd: id: hello, pid: 109 started managed process",
       "info vminitd: id: hello sending signal 15 to process 109",
       "info vminitd: id: hello, status: 137 managed process exit",
-      "info vminitd: id: hello closing relay for StandardIO stdout",
+      "info vminitd: id: hello closing relay for StandardIO stdout"
     ]
     let segment = BootLogCycleSegmenter.finalCycleLines(from: lines)
     #expect(segment.count == 5)
@@ -62,7 +62,7 @@ struct BootLogExitStatusParserTests {
       "info vminitd: id: hello, pid: 109 started managed process",
       "info vminitd: id: hello sending signal 15 to process 109",
       "info vminitd: id: hello sending signal 9 to process 109",
-      "info vminitd: id: hello, status: 137 managed process exit",
+      "info vminitd: id: hello, status: 137 managed process exit"
     ]
     let segment = BootLogCycleSegmenter.finalCycleLines(from: lines)
     #expect(segment.first?.contains("memory threshold exceeded") == true)

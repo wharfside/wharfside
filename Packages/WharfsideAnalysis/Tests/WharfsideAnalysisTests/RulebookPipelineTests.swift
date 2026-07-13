@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 import RulebookCore
 import Testing
@@ -48,9 +49,15 @@ import Testing
         $0.template.localizedCaseInsensitiveContains("memory threshold")
     })
     #expect(rendered.contains("sending signal 15 to process"))
+    #expect(rendered.contains("sending signal 9 to process"))
+    #expect(rendered.contains("status: 137 managed process exit"))
     #expect(rendered.contains("EXIT_CODE: 137 (from boot log)"))
+    // Digest16: COUNTS collapsed to final cycle (INFO=27, not multi-boot 230).
+    #expect(result.digest.counts["INFO", default: 0] == 27)
+    #expect(rendered.contains("COUNTS: INFO=27"))
     // Final-cycle scoping: no multi-boot [10x] kernel spam from earlier cycles.
     #expect(!result.digest.topPatterns.contains { $0.count >= 10 })
+    #expect(!rendered.contains("[10x]"))
 }
 
 @Test func matchContextAndDigestShareFinalCycleWindow() throws {
@@ -115,14 +122,17 @@ import Testing
 @Test func corruptJSONBracketFallsBackToSeedRules() throws {
     var data = try SeedRulebook.bundledJSON
     data[data.startIndex] = data[data.startIndex] == UInt8(ascii: "{") ? UInt8(ascii: "[") : UInt8(ascii: "{")
+    // Unsigned bytes are refused before decode (signature gate).
     let pipeline = RulebookPipeline.load(rulebookData: data)
     #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .signatureInvalid)
     #expect(pipeline.rulebook == SeedRulebook.make())
 }
 
 @Test func nonJSONBytesFallBackToSeedRules() {
     let pipeline = RulebookPipeline.load(rulebookData: Data("not json".utf8))
     #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .signatureInvalid)
     #expect(pipeline.rulebook == SeedRulebook.make())
 }
 
@@ -131,7 +141,167 @@ import Testing
     let truncated = Data(data.prefix(data.count / 2))
     let pipeline = RulebookPipeline.load(rulebookData: truncated)
     #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .signatureInvalid)
     #expect(pipeline.rulebook == SeedRulebook.make())
+}
+
+/// Unsigned / rejected rulebook → fallback → report2 still evaluates seed precheck + noise (I4/I6).
+@Test func malformedRulebookFallbackStillDiagnosesReport2ViaSeed() throws {
+    let pipeline = RulebookPipeline.load(rulebookData: Data("not json".utf8))
+    #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .signatureInvalid)
+
+    let entries = try BootFixtureEntries.loadBootLog(named: "stop_timeout_misdiagnosed_as_oom.log")
+    let context = ContainerContext(
+        containerName: "hello",
+        image: "docker.io/library/alpine:latest",
+        exitStatus: .known(137, source: .bootLog),
+        restartCount: 0
+    )
+    let result = LogDigestBuilder().buildWithRules(
+        entries: entries,
+        context: context,
+        window: DigestWindow(description: "logs before container exit"),
+        rulebookPipeline: pipeline
+    )
+    #expect(result.rulebookSource == .fallback)
+    #expect(result.fallbackReason == .signatureInvalid)
+    #expect(result.evaluation.precheckConclusion?.ruleID == "precheck.stop-escalation")
+    #expect(result.evaluation.matchedRuleIDs.contains("noise.vminitd-memory-threshold"))
+    #expect(!result.digest.lastLines.contains { $0.localizedCaseInsensitiveContains("memory threshold exceeded") })
+}
+
+@Test func verifiedBundledRulebookLoadsHappyPath() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let document = try JSONEncoder().encode(SeedRulebook.make())
+    let envelope = try RulebookSignatureEnvelope.sign(
+        document: document,
+        privateKey: key,
+        keyId: "pipeline-test"
+    )
+    let pipeline = RulebookPipeline.load(
+        rulebookData: document,
+        signatureData: try JSONEncoder().encode(envelope),
+        trustedKeys: ["pipeline-test": key.publicKey]
+    )
+    #expect(pipeline.source == .bundled)
+    #expect(pipeline.fallbackReason == nil)
+    #expect(pipeline.rulebook == SeedRulebook.make())
+}
+
+@Test func tamperedDocumentFallsBackWithSignatureInvalidReason() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let document = try JSONEncoder().encode(SeedRulebook.make())
+    let envelope = try RulebookSignatureEnvelope.sign(
+        document: document,
+        privateKey: key,
+        keyId: "pipeline-test"
+    )
+    var tampered = document
+    tampered[tampered.startIndex] ^= 0x01
+    let pipeline = RulebookPipeline.load(
+        rulebookData: tampered,
+        signatureData: try JSONEncoder().encode(envelope),
+        trustedKeys: ["pipeline-test": key.publicKey]
+    )
+    #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .signatureInvalid)
+    #expect(pipeline.rulebook == SeedRulebook.make())
+}
+
+@Test func wrongKeyIdFallsBackWithSignatureInvalidReason() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let document = try JSONEncoder().encode(SeedRulebook.make())
+    let envelope = try RulebookSignatureEnvelope.sign(
+        document: document,
+        privateKey: key,
+        keyId: "pipeline-test"
+    )
+    let wrong = RulebookSignatureEnvelope(keyId: "other-key", signature: envelope.signature)
+    let pipeline = RulebookPipeline.load(
+        rulebookData: document,
+        signatureData: try JSONEncoder().encode(wrong),
+        trustedKeys: ["pipeline-test": key.publicKey]
+    )
+    #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .signatureInvalid)
+}
+
+@Test func signedMalformedDocumentFallsBackWithMalformedReason() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let document = Data("not json".utf8)
+    let envelope = try RulebookSignatureEnvelope.sign(
+        document: document,
+        privateKey: key,
+        keyId: "pipeline-test"
+    )
+    let pipeline = RulebookPipeline.load(
+        rulebookData: document,
+        signatureData: try JSONEncoder().encode(envelope),
+        trustedKeys: ["pipeline-test": key.publicKey]
+    )
+    #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .malformed)
+}
+
+@Test func missingRulebookFallsBackWithMissingReason() {
+    let pipeline = RulebookPipeline.load(rulebookData: nil)
+    #expect(pipeline.source == .fallback)
+    #expect(pipeline.fallbackReason == .missing)
+}
+
+@Test func fallbackReasonsProduceIdenticalReport2Diagnosis() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let goodDocument = try JSONEncoder().encode(SeedRulebook.make())
+    let goodEnvelope = try RulebookSignatureEnvelope.sign(
+        document: goodDocument,
+        privateKey: key,
+        keyId: "pipeline-test"
+    )
+    var tampered = goodDocument
+    tampered[tampered.startIndex] ^= 0x01
+    let signedJunk = Data("not json".utf8)
+    let junkEnvelope = try RulebookSignatureEnvelope.sign(
+        document: signedJunk,
+        privateKey: key,
+        keyId: "pipeline-test"
+    )
+    let trusted = ["pipeline-test": key.publicKey]
+
+    let pipelines = [
+        RulebookPipeline.load(rulebookData: nil),
+        RulebookPipeline.load(
+            rulebookData: tampered,
+            signatureData: try JSONEncoder().encode(goodEnvelope),
+            trustedKeys: trusted
+        ),
+        RulebookPipeline.load(
+            rulebookData: signedJunk,
+            signatureData: try JSONEncoder().encode(junkEnvelope),
+            trustedKeys: trusted
+        )
+    ]
+    #expect(pipelines.map(\.fallbackReason) == [.missing, .signatureInvalid, .malformed])
+
+    let entries = try BootFixtureEntries.loadBootLog(named: "stop_timeout_misdiagnosed_as_oom.log")
+    let context = ContainerContext(
+        containerName: "hello",
+        image: "docker.io/library/alpine:latest",
+        exitStatus: .known(137, source: .bootLog),
+        restartCount: 0
+    )
+    let digests = pipelines.map { pipeline in
+        PromptRenderer().render(
+            LogDigestBuilder().buildWithRules(
+                entries: entries,
+                context: context,
+                window: DigestWindow(description: "logs before container exit"),
+                rulebookPipeline: pipeline
+            ).digest
+        )
+    }
+    #expect(digests[0] == digests[1])
+    #expect(digests[1] == digests[2])
 }
 
 @Test func crashyDigestDoesNotClaimNoiseFiredWithoutThresholdLine() throws {

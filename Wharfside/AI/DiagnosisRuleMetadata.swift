@@ -8,6 +8,7 @@ import WharfsideAnalysis
 struct DiagnosisRuleMetadata: Sendable, Equatable {
     let rulebookVersion: String
     let rulebookSource: RulebookPipeline.RulebookSource
+    let fallbackReason: RulebookPipeline.FallbackReason?
     let matchedRuleIDs: [String]
     let skippedUnknownKinds: [String]
     let precheckRuleID: String?
@@ -15,6 +16,7 @@ struct DiagnosisRuleMetadata: Sendable, Equatable {
     nonisolated static let empty = DiagnosisRuleMetadata(
         rulebookVersion: SeedRulebook.version,
         rulebookSource: .fallback,
+        fallbackReason: nil,
         matchedRuleIDs: [],
         skippedUnknownKinds: [],
         precheckRuleID: nil
@@ -23,12 +25,14 @@ struct DiagnosisRuleMetadata: Sendable, Equatable {
     nonisolated init(
         rulebookVersion: String,
         rulebookSource: RulebookPipeline.RulebookSource,
+        fallbackReason: RulebookPipeline.FallbackReason? = nil,
         matchedRuleIDs: [String],
         skippedUnknownKinds: [String],
         precheckRuleID: String?
     ) {
         self.rulebookVersion = rulebookVersion
         self.rulebookSource = rulebookSource
+        self.fallbackReason = fallbackReason
         self.matchedRuleIDs = matchedRuleIDs
         self.skippedUnknownKinds = skippedUnknownKinds
         self.precheckRuleID = precheckRuleID
@@ -37,6 +41,7 @@ struct DiagnosisRuleMetadata: Sendable, Equatable {
     nonisolated init(buildResult: DigestBuildResult) {
         self.rulebookVersion = buildResult.rulebookVersion
         self.rulebookSource = buildResult.rulebookSource
+        self.fallbackReason = buildResult.fallbackReason
         self.matchedRuleIDs = buildResult.evaluation.matchedRuleIDs
         self.skippedUnknownKinds = buildResult.skippedUnknownKinds
         self.precheckRuleID = buildResult.evaluation.precheckConclusion?.ruleID
@@ -46,6 +51,7 @@ struct DiagnosisRuleMetadata: Sendable, Equatable {
         Self.formatFooterLine(
             rulebookVersion: rulebookVersion,
             rulebookSource: rulebookSource,
+            fallbackReason: fallbackReason,
             matchedRuleIDs: matchedRuleIDs,
             skippedUnknownKinds: skippedUnknownKinds
         )
@@ -54,13 +60,30 @@ struct DiagnosisRuleMetadata: Sendable, Equatable {
     nonisolated static func formatFooterLine(
         rulebookVersion: String,
         rulebookSource: RulebookPipeline.RulebookSource,
+        fallbackReason: RulebookPipeline.FallbackReason? = nil,
         matchedRuleIDs: [String],
         skippedUnknownKinds: [String]
     ) -> String {
-        let sourceLabel = rulebookSource == .bundled ? "bundled" : "fallback"
+        let identity: String
+        switch rulebookSource {
+        case .bundled:
+            identity = "\(rulebookVersion) (bundled)"
+        case .fallback:
+            let reasonLabel: String
+            if let fallbackReason {
+                switch fallbackReason {
+                case .signatureInvalid: reasonLabel = "signature"
+                case .malformed: reasonLabel = "malformed"
+                case .missing: reasonLabel = "missing"
+                }
+                identity = "seed (bundled rulebook rejected: \(reasonLabel))"
+            } else {
+                identity = "seed (fallback)"
+            }
+        }
         let matched = matchedRuleIDs.isEmpty ? "none" : matchedRuleIDs.joined(separator: ", ")
         let skipped = skippedUnknownKinds.isEmpty ? "none" : skippedUnknownKinds.joined(separator: ", ")
-        return "Rulebook: \(rulebookVersion) (\(sourceLabel)) · Rules fired: \(matched) · "
+        return "Rulebook: \(identity) · Rules fired: \(matched) · "
             + "Skipped unknown rule kinds: \(skipped)"
     }
 }
@@ -79,7 +102,7 @@ enum PrecheckDiagnosisBuilder {
         )
     }
 
-  private static func orderlyStopActions(containerName: String) -> [String] {
+    private static func orderlyStopActions(containerName: String) -> [String] {
         [
             "Review boot log with `container logs \(containerName) --boot` if you need to confirm the stop path"
         ]

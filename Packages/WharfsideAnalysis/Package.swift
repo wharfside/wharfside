@@ -10,12 +10,14 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../RulebookCore"),
+        .package(url: "https://github.com/apple/swift-crypto", from: "3.0.0"),
     ],
     targets: [
         .target(
             name: "WharfsideAnalysis",
             dependencies: [
                 .product(name: "RulebookCore", package: "RulebookCore"),
+                .product(name: "Crypto", package: "swift-crypto"),
             ]
         ),
         .executableTarget(
@@ -24,7 +26,11 @@ let package = Package(
         ),
         .testTarget(
             name: "WharfsideAnalysisTests",
-            dependencies: ["WharfsideAnalysis"]
+            dependencies: [
+                "WharfsideAnalysis",
+                .product(name: "RulebookCore", package: "RulebookCore"),
+                .product(name: "Crypto", package: "swift-crypto"),
+            ]
         ),
     ]
 )

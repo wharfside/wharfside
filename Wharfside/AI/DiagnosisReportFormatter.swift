@@ -101,6 +101,7 @@ enum DiagnosisReportFormatter {
             DiagnosisRuleMetadata.formatFooterLine(
                 rulebookVersion: result.ruleMetadata.rulebookVersion,
                 rulebookSource: result.ruleMetadata.rulebookSource,
+                fallbackReason: result.ruleMetadata.fallbackReason,
                 matchedRuleIDs: result.ruleMetadata.matchedRuleIDs,
                 skippedUnknownKinds: result.ruleMetadata.skippedUnknownKinds
             )

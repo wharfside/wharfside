@@ -1,6 +1,13 @@
 // WharfsideTests/DiagnosisRegressionTests.swift
 // Issue 1.6 / 1.8 — prompt regression against real FoundationModels output.
 // Enabled when `.artifacts/.run-ai-regression` exists (see Makefile `ai-test`).
+//
+// Two-tier suite (B4):
+// - Deterministic / `make ci`: LogDiagnosisServiceReport2Tests (hello / Digest16) —
+//   model never invoked; do not wire report2 into this live-model suite.
+// - Nightly / `make ai-test`: this file — genuine synthesis cases (e.g. crashy /
+//   boot_noise_contamination). Digest15 formatter golden covers the model-path
+//   report *shape* without requiring FoundationModels in CI.
 
 #if canImport(FoundationModels)
 import Foundation

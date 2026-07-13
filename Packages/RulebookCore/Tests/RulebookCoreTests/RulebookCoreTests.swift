@@ -186,6 +186,57 @@ private let report2Context = MatchContext(
     }
 }
 
+@Test func envelopeLoadVerifiedRejectsUnknownKeyIdAndTamper() throws {
+    let key = Curve25519.Signing.PrivateKey()
+    let document = try Data(
+        contentsOf: Bundle.module.url(forResource: "Rulebook", withExtension: "json")!
+    )
+    let envelope = try RulebookSignatureEnvelope.sign(
+        document: document,
+        privateKey: key,
+        keyId: "test-key"
+    )
+    let trusted = ["test-key": key.publicKey]
+
+    let loaded = try RulebookLoader.loadVerified(
+        document: document,
+        envelope: envelope,
+        trustedKeys: trusted
+    )
+    #expect(loaded.version == SeedRulebook.version)
+
+    #expect(throws: RulebookError.unknownKeyId("other-key")) {
+        _ = try RulebookLoader.loadVerified(
+            document: document,
+            envelope: RulebookSignatureEnvelope(keyId: "other-key", signature: envelope.signature),
+            trustedKeys: trusted
+        )
+    }
+
+    var tampered = document
+    tampered[tampered.startIndex] ^= 0x01
+    #expect(throws: RulebookError.invalidSignature) {
+        _ = try RulebookLoader.loadVerified(
+            document: tampered,
+            envelope: envelope,
+            trustedKeys: trusted
+        )
+    }
+}
+
+@Test func pinnedTrustVerifiesBundledRulebookResource() throws {
+    let document = try Data(
+        contentsOf: Bundle.module.url(forResource: "Rulebook", withExtension: "json")!
+    )
+    let envelopeData = try Data(
+        contentsOf: Bundle.module.url(forResource: "Rulebook.json", withExtension: "sig")!
+    )
+    let envelope = try JSONDecoder().decode(RulebookSignatureEnvelope.self, from: envelopeData)
+    let loaded = try RulebookLoader.loadVerified(document: document, envelope: envelope)
+    #expect(loaded == SeedRulebook.make())
+    #expect(envelope.keyId == RulebookTrust.currentKeyID)
+}
+
 @Test func nonJSONBytesFailToDecode() {
     #expect(throws: (any Error).self) {
         _ = try RulebookLoader.loadBundled(Data("not json".utf8))

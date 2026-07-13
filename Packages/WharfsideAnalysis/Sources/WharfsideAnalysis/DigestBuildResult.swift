@@ -7,6 +7,7 @@ public struct DigestBuildResult: Sendable, Equatable {
     public let evaluation: RuleEvaluation
     public let rulebookVersion: String
     public let rulebookSource: RulebookPipeline.RulebookSource
+    public let fallbackReason: RulebookPipeline.FallbackReason?
     public let skippedUnknownKinds: [String]
 
     public init(
@@ -14,12 +15,14 @@ public struct DigestBuildResult: Sendable, Equatable {
         evaluation: RuleEvaluation,
         rulebookVersion: String,
         rulebookSource: RulebookPipeline.RulebookSource,
+        fallbackReason: RulebookPipeline.FallbackReason? = nil,
         skippedUnknownKinds: [String]
     ) {
         self.digest = digest
         self.evaluation = evaluation
         self.rulebookVersion = rulebookVersion
         self.rulebookSource = rulebookSource
+        self.fallbackReason = fallbackReason
         self.skippedUnknownKinds = skippedUnknownKinds
     }
 }

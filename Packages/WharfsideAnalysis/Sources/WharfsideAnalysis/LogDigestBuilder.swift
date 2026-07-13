@@ -49,6 +49,7 @@ public struct LogDigestBuilder: Sendable {
             evaluation: evaluation,
             rulebookVersion: rulebookPipeline.rulebook.version,
             rulebookSource: rulebookPipeline.source,
+            fallbackReason: rulebookPipeline.fallbackReason,
             skippedUnknownKinds: rulebookPipeline.rulebook.skippedUnknownKinds
         )
     }

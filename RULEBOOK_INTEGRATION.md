@@ -32,9 +32,10 @@ Settings UI.
   (`swift:6.0`). Allowed imports: Foundation, RulebookCore (transitively
   swift-crypto). No SwiftUI / FoundationModels / AppKit / os.log-UI.
 - **I4 — Untrusted rulebook posture.** Rule text is never interpolated with
-  log-derived strings. Non-bundled rulebooks require a valid Ed25519
-  signature against the pinned key. Any load/verify failure ⇒ fall back to
-  the bundled rulebook; the diagnosis proceeds, never blocks.
+  log-derived strings. Bundled (and future downloaded) rulebooks require a
+  valid Ed25519 signature against the pinned key before decode. Any
+  load/verify failure ⇒ fall back to the seed rulebook; the diagnosis
+  proceeds, never blocks.
 - **I5 — Model sees rule-cleaned input only.** Noise demotion and fact
   emission happen before digest clustering and before prompt rendering.
 - **I6 — Fail closed.** Malformed regex ⇒ no match. Unknown rule kind ⇒
@@ -94,16 +95,48 @@ recommended convention `KEY: sentence`, e.g.
 
 ## 5. Rulebook loading
 
-- Bundled rulebook: `Rulebook.json` app resource, loaded via
-  `RulebookLoader.loadBundled` at diagnosis-service init. Covered by app
-  code signature; no separate verification.
-- Load failure of the bundled rulebook is a programmer error ⇒ assert in
-  debug; in release, proceed with an empty rulebook (pipeline degrades to
-  pre-rulebook behavior) and log.
-- Active rulebook identity (`version`, source = `bundled` for now) is
-  recorded in every diagnosis report footer (§8).
-- Downloaded rulebooks: out of scope here (R8), but all call sites MUST go
-  through a single `activeRulebook` accessor so R8 swaps one seam.
+```
+bytes = Rulebook.json + Rulebook.json.sig (detached envelope)
+├─ signature verifies (Ed25519, embedded public key, matching keyId)?
+│   ├─ yes → decode
+│   │   ├─ decodes → active rulebook (footer: "0.1.0 (bundled)")
+│   │   └─ fails  → seed fallback (reason: malformed)
+│   └─ no  → seed fallback (reason: signatureInvalid)
+└─ file missing/unreadable → seed fallback (reason: missing)
+```
+
+- **Verify before decode.** Untrusted document bytes never reach `JSONDecoder`
+  until the detached Ed25519 signature verifies against the public key embedded
+  in `RulebookTrust` (not shipped next to the payload).
+- **Envelope:** `Rulebook.json.sig` is JSON `{ "keyId", "signature" }` where
+  `signature` is base64 of the raw 64-byte Ed25519 signature over the **exact
+  file bytes** of `Rulebook.json` (no canonicalization).
+- **Current key:** `wharfside-rulebook-2026-01` (see `RulebookTrust`).
+- **Fallback:** identical diagnosis behavior for all reasons; footer reads
+  `Rulebook: seed (bundled rulebook rejected: signature|malformed|missing)`.
+- Downloaded rulebooks (0.2+): same `RulebookPipeline.load` seam; remote bytes
+  cross a trust boundary and reuse this verifier.
+
+### Signing
+
+Private key never enters the repo or CI. Maintainer workflow:
+
+```bash
+# One-time (or rotation): write key material under .private/ (gitignored)
+cd Packages/RulebookCore && swift run rulebook-tool generate-key \
+  --out-dir ../../.private/rulebook-signing
+# Embed printed public key in RulebookTrust.currentPublicKeyBase64, then:
+export RULEBOOK_SIGNING_KEY="$PWD/.private/rulebook-signing/wharfside-rulebook-2026-01.private.b64"
+make sign-rulebook   # signs package + app copies, runs verify-rulebook
+make verify-rulebook # also part of make ci
+```
+
+### Key rotation procedure
+
+1. Generate a new key id + keypair; embed **both** public keys in `RulebookTrust`
+   for one release (old apps keep verifying old rulebooks).
+2. Re-sign shipping `Rulebook.json` with the new key; bump envelope `keyId`.
+3. Next release: drop the old public key from `trustedKeys`.
 
 ## 6. Pipeline integration (order is normative)
 
@@ -160,9 +193,13 @@ exit-code race; leave a `// R1a` marker on both.
 Diagnosis reports gain a footer block:
 
 ```
-Rulebook: 0.1.0 (bundled) · Rules matched: precheck.stop-escalation, noise.vminitd-memory-threshold
+Rulebook: 0.1.0 (bundled) · Rules fired: precheck.stop-escalation, noise.vminitd-memory-threshold
 Skipped unknown rule kinds: none
 ```
+
+When the bundled rulebook is rejected, the identity clause becomes
+`seed (bundled rulebook rejected: <reason>)` with reason
+`signature` / `malformed` / `missing`.
 
 `matchedRuleIDs` come from `RuleEvaluation`; `skippedUnknownKinds` from the
 loaded `Rulebook`. This is the debugging trail for future wrong-diagnosis
