@@ -22,16 +22,15 @@ enum RulebookTool {
     }
 
     private static func printUsageAndExit() -> Never {
-        fputs(
-            """
+        // FileHandle avoids Linux Swift 6 `stderr` shared-mutable-state errors.
+        let usage = Data("""
             usage:
               rulebook-tool generate-key --out-dir <dir>
               rulebook-tool sign --key <private.b64> --document <Rulebook.json> --out <Rulebook.json.sig>
               rulebook-tool verify --document <Rulebook.json> --sig <Rulebook.json.sig>
 
-            """,
-            stderr
-        )
+            """.utf8)
+        try? FileHandle.standardError.write(contentsOf: usage)
         exit(2)
     }
 
