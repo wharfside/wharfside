@@ -68,9 +68,23 @@ the pinned revision.
 
 ## B3 precheck inputs
 
-Precheck rules should key on the **boot-log stop signature** (SIGTERM → SIGKILL → status 137) and
-treat boot-time `vminitd memory threshold exceeded` as noise — not on exit code alone. Exit code
-137 is necessary but not sufficient (also matches OOM SIGKILL); the signal sequence disambiguates.
+Precheck rules key on the **boot-log stop signature** in the **final lifecycle cycle**
+(`BootLogCycleSegmenter.finalCycleLines` → `MatchContext.logLines`):
+
+1. Complete signal sequence: `sending signal 15` → `sending signal 9` → `status: 137 managed process exit`
+2. Exit corroboration: `.known(137, source: _)` on `ContainerContext` (runtime or boot log)
+
+**The boot-log sequence is the stop-request evidence.** A Wharfside-observed stop request,
+when present, may upgrade confidence wording — it never gates the rule. CLI-initiated stops
+(days ago, no app record) must still match.
+
+Treat boot-time `vminitd memory threshold exceeded` as **noise** (demote on `@boot` lines only;
+can fire multiple times per cycle — not a cycle delimiter). Exit code 137 alone is insufficient
+(SIGKILL also matches OOM); the signal sequence disambiguates.
+
+Precheck conclusion (honest wording): **stopped via SIGTERM/SIGKILL (orderly stop)** — not
+"user-initiated" in rule text (that is an inference safe for the flagship case but not what
+the evidence layer observes).
 
 ## Multi-cycle boot logs (B1.1b)
 
@@ -80,14 +94,29 @@ lines across history. Parsing the full boot buffer yields `.ambiguousEvidence` �
 behavior for an unscoped question, but wrong for diagnosis (“why did this container die **most
 recently**?”).
 
-**Lifecycle scoping:** segment the boot log into cycles, parse only the **final** segment with the
-strict rules above. Fail-closed ambiguity is unchanged **within** a cycle (two status lines with no
-cycle boundary between them → `.ambiguousEvidence`).
+**Lifecycle scoping:** segment the boot log into cycles delimited by the **terminal** line
+`status: N managed process exit`. A cycle runs from just after the previous terminal (or the
+start of the log) through the end of the buffer after its own terminal — so the VM boot
+preamble *before* `started managed process` (including `vminitd memory threshold exceeded`)
+belongs to the same cycle as the eventual stop. Fail-closed ambiguity is unchanged **within**
+a cycle (two status lines with no intervening terminal boundary → final segment may lack a
+complete signal sequence → `.ambiguousEvidence`).
 
 | Delimiter | Role |
 |-----------|------|
-| `started managed process` | **Cycle start** — once per init lifecycle; stable in all fixtures |
-| `vminitd memory threshold exceeded` | Boot noise on every cycle (B3 precheck ignores); not used as delimiter because it fires multiple times within a single boot |
+| `status: N managed process exit` | **Cycle terminal** — ends one lifecycle; next line (or EOF) starts / closes the window |
+| `started managed process` | Process launch within a cycle — **not** a cycle boundary |
+| `vminitd memory threshold exceeded` | Boot noise inside the cycle (B3 noise demotion); often precedes process launch |
+
+**One window, two consumers:** `BootLogCycleSegmenter.finalCycleLines` /
+`finalCycleEntries` feed both `MatchContext` (precheck/noise) and `LogDigestBuilder`
+(boot-primary clustering / LAST_LINES). Exit-status parsing uses the same segment.
 
 Evidence extraction: `BootLogCycleSegmenter.finalCycleLines` → `BootLogExitStatusParser.parseFinalCycle`.
 Fixtures: `exit_status_multicycle_hello_boot.log` (real `hello` tail), `stop_timeout_misdiagnosed_as_oom.log` → `.known(137, .bootLog)` on final cycle.
+
+## Deferred: generic kernel-boot pattern demotion (0.1.2)
+
+Final-cycle scoping already collapses multi-boot `[10x]` TOP_PATTERNS for boot-primary digests.
+Remaining 0.1.2 work: demote generic kernel-init templates (9pnet, IPVS, …) within a single cycle
+when they still crowd the pattern table without aiding diagnosis.

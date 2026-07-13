@@ -48,6 +48,12 @@ struct DiagnosisResultCard: View {
                     .foregroundStyle(.secondary)
             }
 
+            if presentation.showsOrderlyStopSubtext {
+                Text("Observed in boot log — not a crash.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             if result.wasDegraded {
                 Text(
                     "The analysis couldn't be fully verified against the logs, "

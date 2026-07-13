@@ -10,11 +10,11 @@ import Testing
         exitStatus: .known(1, source: .runtime),
         restartCount: 0
     )
-    let digest = LogDigestBuilder().build(
+    let digest = LogDigestBuilder().buildWithRules(
         entries: entries,
         context: context,
         window: DigestWindow(description: "logs before container exit")
-    )
+    ).digest
     let rendered = PromptRenderer().render(digest)
 
   #expect(digest.counts["ERROR", default: 0] == 1)
@@ -37,11 +37,11 @@ import Testing
         exitStatus: .known(1, source: .runtime),
         restartCount: 0
     )
-    let digest = LogDigestBuilder().build(
+    let digest = LogDigestBuilder().buildWithRules(
         entries: entries,
         context: context,
         window: DigestWindow(description: "logs before container exit")
-    )
+    ).digest
     let rendered = PromptRenderer().render(digest)
 
   #expect(digest.sourceNote == "boot log only (no application output)")

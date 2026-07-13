@@ -21,7 +21,8 @@ struct DiagnosisReportFormatterTests {
             ),
             wasDegraded: false,
             telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
-            renderedDigest: "CONTAINER: db\nIMAGE: postgres:16\nLAST_ERROR:\nNo space left on device"
+            renderedDigest: "CONTAINER: db\nIMAGE: postgres:16\nLAST_ERROR:\nNo space left on device",
+            ruleMetadata: .empty
         )
 
         let report = DiagnosisReportFormatter.render(
@@ -32,11 +33,11 @@ struct DiagnosisReportFormatterTests {
 
         let expected = """
         ## Wharfside diagnosis report
-        Wharfside 1.0 · container runtime 1.0.0 · macOS 26.0
+        Wharfside 0.1.1 · container runtime 1.0.0 · macOS 26.0
         Container: db · image: postgres:16 · status: stopped
         Generated: 2023-11-14T22:13:20Z
 
-        ### Digest (what the model saw)
+        ### Digest
         ```
         CONTAINER: db
         IMAGE: postgres:16
@@ -44,16 +45,53 @@ struct DiagnosisReportFormatterTests {
         No space left on device
         ```
 
-        ### Diagnosis (what the model said)
+        ### Diagnosis
+        Diagnosed by: on-device model over digest
         Summary: PostgreSQL shut down because the host disk is full.
         Category: configuration · Confidence: high
         Suggested actions:
         1. Free disk space on the host, then run `container start db`
         2. Inspect volume usage with `container inspect db`
         Degraded: false · Retries: 0 · Violations: none
+        Rulebook: 0.1.0 (fallback) · Rules fired: none · Skipped unknown rule kinds: none
         """
 
         #expect(report == expected)
+    }
+
+@Test func rendersDeterministicPrecheckSource() {
+        let result = DiagnosisResult(
+            diagnosis: ContainerDiagnosis(
+                summary: "Container stopped via SIGTERM/SIGKILL (orderly stop).",
+                category: .stopped,
+                suggestedActions: [
+                    "Review boot log with `container logs hello --boot` if you need to confirm the stop path"
+                ],
+                confidence: .high
+            ),
+            wasDegraded: false,
+            telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
+            renderedDigest: "CONTAINER: hello\nFACTS:\nTERMINATION: orderly stop",
+            ruleMetadata: DiagnosisRuleMetadata(
+                rulebookVersion: "0.1.0",
+                rulebookSource: .bundled,
+                matchedRuleIDs: ["precheck.stop-escalation", "noise.vminitd-memory-threshold"],
+                skippedUnknownKinds: [],
+                precheckRuleID: "precheck.stop-escalation"
+            ),
+            source: .deterministicPrecheck(ruleID: "precheck.stop-escalation")
+        )
+
+        let report = DiagnosisReportFormatter.render(
+            result: result,
+            container: sampleContainer(id: "hello", image: "docker.io/library/alpine:latest"),
+            environment: sampleEnvironment()
+        )
+
+        #expect(report.contains("### Diagnosis\nDiagnosed by: deterministic precheck (precheck.stop-escalation; model not invoked)"))
+        #expect(report.contains("Rules fired: precheck.stop-escalation, noise.vminitd-memory-threshold"))
+        #expect(!report.contains("what the model said"))
+        #expect(!report.contains("Rules matched:"))
     }
 
     @Test func rendersDegradedRetriedResultWithViolations() {
@@ -73,7 +111,8 @@ struct DiagnosisReportFormatterTests {
                 retryCount: 1,
                 wasDegraded: true
             ),
-            renderedDigest: "CONTAINER: db\nIMAGE: postgres:16\n\nCORRECTION: The term \"disk\" does not appear."
+            renderedDigest: "CONTAINER: db\nIMAGE: postgres:16\n\nCORRECTION: The term \"disk\" does not appear.",
+            ruleMetadata: .empty
         )
 
         let report = DiagnosisReportFormatter.render(
@@ -98,7 +137,8 @@ struct DiagnosisReportFormatterTests {
             ),
             wasDegraded: false,
             telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
-            renderedDigest: "CONTAINER: quiet\nIMAGE: app:1\nEXIT_CODE: 0"
+            renderedDigest: "CONTAINER: quiet\nIMAGE: app:1\nEXIT_CODE: 0",
+            ruleMetadata: .empty
         )
 
         let report = DiagnosisReportFormatter.render(
@@ -120,7 +160,8 @@ struct DiagnosisReportFormatterTests {
             ),
             wasDegraded: false,
             telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
-            renderedDigest: "CONTAINER: db\nIMAGE: postgres:16"
+            renderedDigest: "CONTAINER: db\nIMAGE: postgres:16",
+            ruleMetadata: .empty
         )
         let container = sampleContainer()
         let environment = sampleEnvironment()
@@ -178,7 +219,7 @@ private func sampleContainer(
 
 private func sampleEnvironment() -> DiagnosisReportEnvironment {
     DiagnosisReportEnvironment(
-        wharfsideVersion: "1.0",
+        wharfsideVersion: "0.1.1",
         runtimeVersionLabel: "1.0.0",
         macOSVersion: "26.0",
         generatedAt: Date(timeIntervalSince1970: 1_700_000_000)

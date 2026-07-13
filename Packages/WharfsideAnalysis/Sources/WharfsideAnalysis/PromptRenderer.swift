@@ -25,6 +25,11 @@ public struct PromptRenderer: Sendable {
             sections.append("SOURCE: \(sourceNote)")
         }
 
+        if !digest.facts.isEmpty {
+            sections.append("FACTS:")
+            sections.append(contentsOf: digest.facts)
+        }
+
         let countLine = digest.counts
             .sorted { $0.key < $1.key }
             .filter { $0.value > 0 }

@@ -2,6 +2,7 @@
 // Issue 1.7 — validation and streaming pipeline helpers for LogDiagnosisService.
 
 import Foundation
+import RulebookCore
 import WharfsideAnalysis
 
 extension LogDiagnosisService {
@@ -9,12 +10,32 @@ extension LogDiagnosisService {
         let digest: LogDigest
         let renderedDigest: String
         let basePrompt: String
+        let buildResult: DigestBuildResult
+        let matchLines: [String]
+
+        var evaluation: RuleEvaluation { buildResult.evaluation }
+        var ruleMetadata: DiagnosisRuleMetadata { DiagnosisRuleMetadata(buildResult: buildResult) }
     }
 
     func runValidatedDiagnosis(
         context: DiagnosisContext,
         generationSettings: DiagnosisGenerationSettings
     ) async throws -> DiagnosisResult {
+        if let conclusion = context.evaluation.precheckConclusion,
+           let diagnosis = PrecheckDiagnosisBuilder.diagnosis(
+               from: conclusion,
+               containerName: context.digest.containerName
+           ) {
+            return DiagnosisResult(
+                diagnosis: diagnosis,
+                wasDegraded: false,
+                telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
+                renderedDigest: context.renderedDigest,
+                ruleMetadata: context.ruleMetadata,
+                source: .deterministicPrecheck(ruleID: conclusion.ruleID)
+            )
+        }
+
         var retryCount = 0
         var allViolations: [DiagnosisViolation] = []
 
@@ -45,6 +66,21 @@ extension LogDiagnosisService {
         generationSettings: DiagnosisGenerationSettings,
         onPartial: (ContainerDiagnosis.PartiallyGenerated) -> Void
     ) async throws -> DiagnosisResult {
+        if let conclusion = context.evaluation.precheckConclusion,
+           let diagnosis = PrecheckDiagnosisBuilder.diagnosis(
+               from: conclusion,
+               containerName: context.digest.containerName
+           ) {
+            return DiagnosisResult(
+                diagnosis: diagnosis,
+                wasDegraded: false,
+                telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
+                renderedDigest: context.renderedDigest,
+                ruleMetadata: context.ruleMetadata,
+                source: .deterministicPrecheck(ruleID: conclusion.ruleID)
+            )
+        }
+
         var retryCount = 0
         var allViolations: [DiagnosisViolation] = []
 
@@ -100,12 +136,20 @@ extension LogDiagnosisService {
             restartCount: restartCount
         )
         let window = digestWindow(for: container)
-        let digest = digestBuilder.build(entries: entries, context: context, window: window)
-        let rendered = promptRenderer.render(digest)
+        let buildResult = digestBuilder.buildWithRules(
+            entries: entries,
+            context: context,
+            window: window,
+            rulebookPipeline: rulebookPipeline
+        )
+        let rendered = promptRenderer.render(buildResult.digest)
+        let matchContext = MatchContextBuilder.make(entries: entries, context: context)
         return DiagnosisContext(
-            digest: digest,
+            digest: buildResult.digest,
             renderedDigest: rendered,
-            basePrompt: rendered
+            basePrompt: rendered,
+            buildResult: buildResult,
+            matchLines: matchContext.logLines
         )
     }
 
@@ -118,8 +162,6 @@ extension LogDiagnosisService {
         allViolations: inout [DiagnosisViolation]
     ) async throws -> DiagnosisResult {
         let corrections = validator.correctionLines(for: allViolations, digest: context.digest)
-        // Issue 1.11: this retry prompt — not the original context.renderedDigest — is what
-        // the FINAL generation attempt actually sees, so it's what DiagnosisResult must retain.
         let retryPrompt = context.basePrompt + "\n\nCORRECTION: " + corrections.joined(separator: " ")
         retryCount = 1
 
@@ -152,7 +194,8 @@ extension LogDiagnosisService {
                 retryCount: retryCount,
                 wasDegraded: true
             ),
-            renderedDigest: retryPrompt
+            renderedDigest: retryPrompt,
+            ruleMetadata: context.ruleMetadata
         )
     }
 
@@ -169,7 +212,9 @@ extension LogDiagnosisService {
         let violations = validator.validate(
             diagnosis,
             against: context.digest,
-            renderedDigest: context.renderedDigest
+            renderedDigest: context.renderedDigest,
+            evaluation: context.evaluation,
+            matchLines: context.matchLines
         )
         let retryable = violations.filter {
             if case .wrongCLIVocabulary = $0 { return false }
@@ -188,7 +233,8 @@ extension LogDiagnosisService {
                 retryCount: retryCount,
                 wasDegraded: false
             ),
-            renderedDigest: renderedDigest
+            renderedDigest: renderedDigest,
+            ruleMetadata: context.ruleMetadata
         )
     }
 
@@ -219,10 +265,6 @@ extension LogDiagnosisService {
             latest = partial
             onPartial(partial)
         }
-        // AsyncThrowingStream.next() resolves to nil (not a thrown error) when the
-        // consuming task is cancelled, so a cancellation can look identical to a
-        // stream that simply produced nothing. Check explicitly to avoid
-        // mislabeling cancellation as .incompleteResponse.
         try Task.checkCancellation()
         guard let latest else { throw DiagnosisError.incompleteResponse }
         return try ContainerDiagnosis(partial: latest)
@@ -239,7 +281,6 @@ extension LogDiagnosisService {
         }
     }
 
-    /// Fetches init-process exit status at diagnosis time; boot-log fallback when runtime is gone.
     func resolvedExitStatus(for container: ContainerDetail, entries: [LogEntry]) async -> ExitStatus {
         switch container.status {
         case .running:

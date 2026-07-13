@@ -25,6 +25,11 @@ struct DiagnosisPresentation {
         showsMediumConfidenceChip
     }
 
+    /// Precheck short-circuit: orderly stop is observed evidence, not a failure diagnosis.
+    var showsOrderlyStopSubtext: Bool {
+        diagnosis.category == .stopped && !result.wasDegraded
+    }
+
     var categoryTitle: String {
         switch diagnosis.category {
         case .dependencyUnreachable: "Dependency unreachable"
@@ -32,6 +37,7 @@ struct DiagnosisPresentation {
         case .outOfMemory: "Out of memory"
         case .applicationBug: "Application bug"
         case .imageOrRuntime: "Image / runtime"
+        case .stopped: "Orderly stop"
         case .unknown: "Unknown"
         }
     }
@@ -43,6 +49,7 @@ struct DiagnosisPresentation {
         case .outOfMemory: "memorychip"
         case .applicationBug: "ladybug"
         case .imageOrRuntime: "shippingbox"
+        case .stopped: "stop.circle"
         case .unknown: "questionmark.circle"
         }
     }
@@ -51,12 +58,18 @@ struct DiagnosisPresentation {
         if result.wasDegraded || diagnosis.confidence == .low {
             return Color.secondary.opacity(0.12)
         }
+        if diagnosis.category == .stopped {
+            return Color.blue.opacity(0.12)
+        }
         return Color.accentColor.opacity(0.12)
     }
 
     var categoryChipForeground: Color {
         if result.wasDegraded || diagnosis.confidence == .low {
             return .secondary
+        }
+        if diagnosis.category == .stopped {
+            return .blue
         }
         return .primary
     }

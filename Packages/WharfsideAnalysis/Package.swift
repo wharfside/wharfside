@@ -8,8 +8,16 @@ let package = Package(
         .library(name: "WharfsideAnalysis", targets: ["WharfsideAnalysis"]),
         .executable(name: "digest-preview", targets: ["DigestPreview"]),
     ],
+    dependencies: [
+        .package(path: "../RulebookCore"),
+    ],
     targets: [
-        .target(name: "WharfsideAnalysis"),
+        .target(
+            name: "WharfsideAnalysis",
+            dependencies: [
+                .product(name: "RulebookCore", package: "RulebookCore"),
+            ]
+        ),
         .executableTarget(
             name: "DigestPreview",
             dependencies: ["WharfsideAnalysis"]

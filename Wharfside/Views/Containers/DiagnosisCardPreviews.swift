@@ -2,6 +2,7 @@
 // Issue 1.7 — SwiftUI previews for every diagnosis card state.
 
 import SwiftUI
+import WharfsideAnalysis
 
 #if DEBUG
 enum DiagnosisCardPreviewData {
@@ -17,7 +18,8 @@ enum DiagnosisCardPreviewData {
         ),
         wasDegraded: false,
         telemetry: .init(violations: [], retryCount: 0, wasDegraded: false),
-        renderedDigest: "CONTAINER: db\nIMAGE: postgres:16\nLAST_ERROR:\nNo space left on device"
+        renderedDigest: "CONTAINER: db\nIMAGE: postgres:16\nLAST_ERROR:\nNo space left on device",
+        ruleMetadata: .empty
     )
 
     static let mediumConfidence = DiagnosisResult(
@@ -32,7 +34,8 @@ enum DiagnosisCardPreviewData {
         ),
         wasDegraded: false,
         telemetry: .init(violations: [], retryCount: 0, wasDegraded: false),
-        renderedDigest: "CONTAINER: api\nIMAGE: node:20\nLAST_ERROR:\nECONNREFUSED 127.0.0.1:5432"
+        renderedDigest: "CONTAINER: api\nIMAGE: node:20\nLAST_ERROR:\nECONNREFUSED 127.0.0.1:5432",
+        ruleMetadata: .empty
     )
 
     static let lowConfidence = DiagnosisResult(
@@ -47,7 +50,31 @@ enum DiagnosisCardPreviewData {
         ),
         wasDegraded: false,
         telemetry: .init(violations: [], retryCount: 0, wasDegraded: false),
-        renderedDigest: "CONTAINER: quiet\nIMAGE: app:1\nEXIT_CODE: 0\nCOUNTS: INFO=4"
+        renderedDigest: "CONTAINER: quiet\nIMAGE: app:1\nEXIT_CODE: 0\nCOUNTS: INFO=4",
+        ruleMetadata: .empty
+    )
+
+    static let orderlyStop = DiagnosisResult(
+        diagnosis: ContainerDiagnosis(
+            summary: "Container stopped via SIGTERM/SIGKILL (orderly stop); "
+                + "boot log shows signal 15 → grace period → signal 9 → exit 137.",
+            category: .stopped,
+            suggestedActions: [
+                "Review boot log with `container logs hello --boot` if you need to confirm the stop path"
+            ],
+            confidence: .high
+        ),
+        wasDegraded: false,
+        telemetry: .init(violations: [], retryCount: 0, wasDegraded: false),
+        renderedDigest: "CONTAINER: hello\nFACTS:\nTERMINATION: orderly stop",
+        ruleMetadata: DiagnosisRuleMetadata(
+            rulebookVersion: "0.1.0",
+            rulebookSource: .bundled,
+            matchedRuleIDs: ["precheck.stop-escalation", "noise.vminitd-memory-threshold"],
+            skippedUnknownKinds: [],
+            precheckRuleID: "precheck.stop-escalation"
+        ),
+        source: .deterministicPrecheck(ruleID: "precheck.stop-escalation")
     )
 
     static let degraded = DiagnosisResult(
@@ -64,7 +91,8 @@ enum DiagnosisCardPreviewData {
             wasDegraded: true
         ),
         renderedDigest: "CONTAINER: db\nIMAGE: postgres:16\nLAST_ERROR:\nNo space left on device"
-            + "\n\nCORRECTION: The term \"disk\" does not appear in the digest; do not mention it."
+            + "\n\nCORRECTION: The term \"disk\" does not appear in the digest; do not mention it.",
+        ruleMetadata: .empty
     )
 }
 
@@ -116,6 +144,15 @@ enum DiagnosisCardPreviewData {
 #Preview("Result — low confidence") {
     let phase: DiagnosisCardViewModel.Phase = .result(
         .init(result: DiagnosisCardPreviewData.lowConfidence, isVerifying: false)
+    )
+    DiagnosisCard(viewModel: DiagnosisCardViewModel.preview(phase: phase))
+        .padding()
+        .frame(width: 480)
+}
+
+#Preview("Result — orderly stop (precheck)") {
+    let phase: DiagnosisCardViewModel.Phase = .result(
+        .init(result: DiagnosisCardPreviewData.orderlyStop, isVerifying: false)
     )
     DiagnosisCard(viewModel: DiagnosisCardViewModel.preview(phase: phase))
         .padding()

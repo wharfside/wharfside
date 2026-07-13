@@ -74,12 +74,13 @@ enum DiagnosisReportFormatter {
         )
         lines.append("Generated: \(isoTimestamp(environment.generatedAt))")
         lines.append("")
-        lines.append("### Digest (what the model saw)")
+        lines.append("### Digest")
         lines.append("```")
         lines.append(result.renderedDigest)
         lines.append("```")
         lines.append("")
-        lines.append("### Diagnosis (what the model said)")
+        lines.append("### Diagnosis")
+        lines.append(result.source.reportLine)
         lines.append("Summary: \(result.diagnosis.summary)")
         lines.append(
             "Category: \(result.diagnosis.category.rawValue) · Confidence: \(result.diagnosis.confidence.rawValue)"
@@ -96,6 +97,14 @@ enum DiagnosisReportFormatter {
             "Degraded: \(result.wasDegraded) · Retries: \(result.telemetry.retryCount) · "
             + "Violations: \(violationsSummary(result.telemetry.violations))"
         )
+        lines.append(
+            DiagnosisRuleMetadata.formatFooterLine(
+                rulebookVersion: result.ruleMetadata.rulebookVersion,
+                rulebookSource: result.ruleMetadata.rulebookSource,
+                matchedRuleIDs: result.ruleMetadata.matchedRuleIDs,
+                skippedUnknownKinds: result.ruleMetadata.skippedUnknownKinds
+            )
+        )
         return lines.joined(separator: "\n")
     }
 
@@ -110,6 +119,8 @@ enum DiagnosisReportFormatter {
             return "unknownDespiteErrors(\(errorCount))"
         case .categoryWithoutEvidence(let category):
             return "categoryWithoutEvidence(\(category.rawValue))"
+        case .suppressedCategory(let category):
+            return "suppressedCategory(\(category.rawValue))"
         case .fabricatedEvidence(let term):
             return "fabricatedEvidence(\(term))"
         case .wrongCLIVocabulary(let action):

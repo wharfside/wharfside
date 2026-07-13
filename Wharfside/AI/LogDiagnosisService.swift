@@ -87,6 +87,7 @@ final class LogDiagnosisService {
     let sessionFactory: any DiagnosisSessioning
     let digestBuilder: LogDigestBuilder
     let promptRenderer: PromptRenderer
+    let rulebookPipeline: RulebookPipeline
     var validator = DiagnosisValidator()
 
     init(
@@ -95,7 +96,8 @@ final class LogDiagnosisService {
         containerService: (any ContainerServicing)? = nil,
         sessionFactory: (any DiagnosisSessioning)? = nil,
         digestBuilder: LogDigestBuilder? = nil,
-        promptRenderer: PromptRenderer? = nil
+        promptRenderer: PromptRenderer? = nil,
+        rulebookPipeline: RulebookPipeline? = nil
     ) {
         self.availability = availability
         self.lifecycleObserver = lifecycleObserver
@@ -103,6 +105,7 @@ final class LogDiagnosisService {
         self.sessionFactory = sessionFactory ?? FoundationModelsDiagnosisSession()
         self.digestBuilder = digestBuilder ?? LogDigestBuilder()
         self.promptRenderer = promptRenderer ?? PromptRenderer()
+        self.rulebookPipeline = rulebookPipeline ?? RulebookBundleLoader.pipeline()
     }
 
     func prewarm() async throws {

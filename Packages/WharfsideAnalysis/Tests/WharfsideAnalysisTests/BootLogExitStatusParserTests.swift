@@ -35,18 +35,38 @@ struct BootLogExitStatusParserTests {
     #expect(parser.parse(bootEntries: entries) == .known(137, source: .bootLog))
   }
 
-  @Test func cycleSegmenterUsesLastStartedManagedProcess() {
+  @Test func cycleSegmenterUsesTerminalExitAsBoundary() {
     let lines = [
+      "warning vminitd: vminitd memory threshold exceeded",
       "info vminitd: id: hello, pid: 110 started managed process",
       "info vminitd: id: hello, status: 0 managed process exit",
       "warning vminitd: vminitd memory threshold exceeded",
       "info vminitd: id: hello, pid: 109 started managed process",
       "info vminitd: id: hello sending signal 15 to process 109",
-      "info vminitd: id: hello, status: 137 managed process exit"
+      "info vminitd: id: hello, status: 137 managed process exit",
+      "info vminitd: id: hello closing relay for StandardIO stdout",
     ]
     let segment = BootLogCycleSegmenter.finalCycleLines(from: lines)
-    #expect(segment.count == 3)
-    #expect(segment.first?.contains("pid: 109") == true)
+    #expect(segment.count == 5)
+    #expect(segment.first?.contains("memory threshold exceeded") == true)
+    #expect(segment.contains { $0.contains("pid: 109") })
+    #expect(segment.contains { $0.contains("status: 137") })
+    #expect(segment.last?.contains("closing relay") == true)
+    #expect(!segment.contains { $0.contains("pid: 110") })
+    #expect(!segment.contains { $0.contains("status: 0") })
+  }
+
+  @Test func cycleSegmenterIncludesPreambleBeforeStartedManagedProcess() {
+    let lines = [
+      "warning vminitd: vminitd memory threshold exceeded",
+      "info vminitd: id: hello, pid: 109 started managed process",
+      "info vminitd: id: hello sending signal 15 to process 109",
+      "info vminitd: id: hello sending signal 9 to process 109",
+      "info vminitd: id: hello, status: 137 managed process exit",
+    ]
+    let segment = BootLogCycleSegmenter.finalCycleLines(from: lines)
+    #expect(segment.first?.contains("memory threshold exceeded") == true)
+    #expect(segment.contains { $0.contains("started managed process") })
   }
 
   @Test func noEvidenceWhenBootLacksStopSignature() throws {

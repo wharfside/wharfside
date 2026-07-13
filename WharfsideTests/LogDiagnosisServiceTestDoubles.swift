@@ -113,12 +113,13 @@ let sampleDiagnosis = ContainerDiagnosis(
 
 func sampleDetail(
   id: String = "app",
+  image: String = "app:1",
   status: ContainerRuntimeStatus = .stopped,
   exitStatus: WharfsideAnalysis.ExitStatus = .unavailable(reason: .noEvidence)
 ) -> ContainerDetail {
   ContainerDetail(
     id: id,
-    image: "app:1",
+    image: image,
     status: status,
     command: ["app"],
     createdAt: .now,

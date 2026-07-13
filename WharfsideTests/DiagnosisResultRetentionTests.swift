@@ -98,14 +98,3 @@ private func sampleDetail() -> ContainerDetail {
     networks: []
   )
 }
-
-private func sampleEntries() -> [LogEntry] {
-  [
-    LogEntry(
-      timestamp: Date(timeIntervalSince1970: 1_700_000_000),
-      level: .error,
-      message: "connection refused",
-      raw: "ERROR: connection refused"
-    )
-  ]
-}

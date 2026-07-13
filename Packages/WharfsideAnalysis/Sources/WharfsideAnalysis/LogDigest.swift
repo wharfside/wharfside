@@ -40,6 +40,8 @@ public struct LogDigest: Sendable, Equatable {
     public let bootLines: [String]
     /// Optional note when digest is boot-only (no stdio application output).
     public let sourceNote: String?
+    /// Precheck facts from the rulebook (stable rulebook order).
+    public let facts: [String]
     /// Whether error volume in the recent window exceeds the preceding baseline.
     public let errorSpikeDetected: Bool
     /// Approximate token count of the rendered prompt (`PromptRenderer`), using chars / 4.
@@ -58,6 +60,7 @@ public struct LogDigest: Sendable, Equatable {
         restartCount: Int,
         bootLines: [String] = [],
         sourceNote: String? = nil,
+        facts: [String] = [],
         errorSpikeDetected: Bool = false,
         estimatedTokens: Int = 0
     ) {
@@ -73,6 +76,7 @@ public struct LogDigest: Sendable, Equatable {
         self.restartCount = restartCount
         self.bootLines = bootLines
         self.sourceNote = sourceNote
+        self.facts = facts
         self.errorSpikeDetected = errorSpikeDetected
         self.estimatedTokens = estimatedTokens
     }
