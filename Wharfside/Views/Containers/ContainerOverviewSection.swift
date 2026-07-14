@@ -9,6 +9,7 @@ struct ContainerOverviewSection: View {
 
     let detail: ContainerDetail
     let displayStatus: String
+    let overviewExitStatus: ExitStatus
     let observerRestartCount: Int
     let isDiagnosisEligible: Bool
     @Bindable var diagnosisCardViewModel: DiagnosisCardViewModel
@@ -25,7 +26,7 @@ struct ContainerOverviewSection: View {
             }
             CopyableValueView(
                 label: "Exit code",
-                value: detail.exitStatus.overviewDisplay ?? "—",
+                value: overviewExitStatus.overviewDisplay ?? "—",
                 monospaced: false
             )
             CopyableValueView(

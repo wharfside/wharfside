@@ -50,6 +50,23 @@ struct DiagnosisCardViewModelTests {
         }
     }
 
+    @Test func finalizedDiagnosisPublishesExitStatus() async throws {
+        let session = StubDiagnosisSession(mode: .emit(cardSampleDiagnosis))
+        let viewModel = makeViewModel(session: session)
+        viewModel.updateContainer(stoppedContainer(id: "app"))
+
+        var published: (String, ExitStatus)?
+        viewModel.onExitStatusResolved = { id, status in
+            published = (id, status)
+        }
+
+        viewModel.explain()
+        #expect(await TestPolling.waitUntil { published != nil })
+
+        #expect(published?.0 == "app")
+        #expect(published?.1 == .known(1, source: .runtime))
+    }
+
     @Test func degradedResultPreservesFlag() async throws {
         let violating = ContainerDiagnosis(
             summary: "Unknown failure.",

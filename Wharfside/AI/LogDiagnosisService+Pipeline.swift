@@ -32,7 +32,8 @@ extension LogDiagnosisService {
                 telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
                 renderedDigest: context.renderedDigest,
                 ruleMetadata: context.ruleMetadata,
-                source: .deterministicPrecheck(ruleID: conclusion.ruleID)
+                source: .deterministicPrecheck(ruleID: conclusion.ruleID),
+                exitStatus: context.digest.exitStatus
             )
         }
 
@@ -77,7 +78,8 @@ extension LogDiagnosisService {
                 telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
                 renderedDigest: context.renderedDigest,
                 ruleMetadata: context.ruleMetadata,
-                source: .deterministicPrecheck(ruleID: conclusion.ruleID)
+                source: .deterministicPrecheck(ruleID: conclusion.ruleID),
+                exitStatus: context.digest.exitStatus
             )
         }
 
@@ -195,7 +197,8 @@ extension LogDiagnosisService {
                 wasDegraded: true
             ),
             renderedDigest: retryPrompt,
-            ruleMetadata: context.ruleMetadata
+            ruleMetadata: context.ruleMetadata,
+            exitStatus: context.digest.exitStatus
         )
     }
 
@@ -234,7 +237,8 @@ extension LogDiagnosisService {
                 wasDegraded: false
             ),
             renderedDigest: renderedDigest,
-            ruleMetadata: context.ruleMetadata
+            ruleMetadata: context.ruleMetadata,
+            exitStatus: context.digest.exitStatus
         )
     }
 

@@ -104,6 +104,7 @@ struct ContainersView: View {
                 service: service,
                 lifecycleObserver: appState.lifecycleObserver,
                 availability: aiAvailability,
+                exitStatusBackfill: appState.exitStatusBackfill,
                 reportEnvironmentProvider: { appState.diagnosisReportEnvironment },
                 onBackToList: { viewModel.selectedContainerID = nil }
             )

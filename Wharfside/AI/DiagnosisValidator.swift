@@ -45,6 +45,8 @@ struct DiagnosisResult: Sendable, Equatable {
     nonisolated let renderedDigest: String
     nonisolated let ruleMetadata: DiagnosisRuleMetadata
     nonisolated let source: DiagnosisSource
+    /// Exit status resolved for the digest (runtime and/or boot log). Used by B6 Overview backfill.
+    nonisolated let exitStatus: ExitStatus
 
     nonisolated init(
         diagnosis: ContainerDiagnosis,
@@ -52,7 +54,8 @@ struct DiagnosisResult: Sendable, Equatable {
         telemetry: DiagnosisTelemetry,
         renderedDigest: String,
         ruleMetadata: DiagnosisRuleMetadata,
-        source: DiagnosisSource = .onDeviceModel
+        source: DiagnosisSource = .onDeviceModel,
+        exitStatus: ExitStatus = .unavailable(reason: .noEvidence)
     ) {
         self.diagnosis = diagnosis
         self.wasDegraded = wasDegraded
@@ -60,6 +63,7 @@ struct DiagnosisResult: Sendable, Equatable {
         self.renderedDigest = renderedDigest
         self.ruleMetadata = ruleMetadata
         self.source = source
+        self.exitStatus = exitStatus
     }
 }
 

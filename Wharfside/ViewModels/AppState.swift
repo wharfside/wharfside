@@ -44,6 +44,9 @@ final class AppState {
     /// App-derived restart counts from container list polling (issue 1.6).
     let lifecycleObserver = ContainerLifecycleObserver()
 
+    /// Session-scoped Overview exit-code backfill from diagnosis (B6).
+    let exitStatusBackfill = ExitStatusBackfillCache()
+
     init(
         systemService: any SystemServicing,
         containerService: any ContainerServicing,

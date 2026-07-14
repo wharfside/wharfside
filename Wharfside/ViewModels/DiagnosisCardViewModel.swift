@@ -51,6 +51,10 @@ final class DiagnosisCardViewModel {
     private var prewarmTask: Task<Void, Never>?
     private var copyReportBannerClearTask: Task<Void, Never>?
 
+    /// Invoked when a diagnosis finalizes with a resolved exit status (B6 Overview backfill).
+    /// Kept as a callback so this view model does not own AppState / the backfill cache.
+    var onExitStatusResolved: ((String, ExitStatus) -> Void)?
+
     /// Transient "Report copied" confirmation, mirroring `ContainerActionCoordinator`'s
     /// banner pattern (auto-clears; the security-review reminder is the point of showing it).
     private(set) var copyReportBannerMessage: String?
@@ -223,6 +227,7 @@ final class DiagnosisCardViewModel {
     private func applyFinalized(_ result: DiagnosisResult, containerID: String) async {
         phase = .result(ResultState(result: result, isVerifying: true))
         resultContainerID = containerID
+        onExitStatusResolved?(containerID, result.exitStatus)
 
         try? await Task.sleep(for: .milliseconds(200))
         guard !Task.isCancelled else { return }
@@ -301,6 +306,9 @@ extension DiagnosisCardViewModel {
         cancelInFlightWork(resetToIdle: false)
         phase = .result(ResultState(result: result, isVerifying: false))
         resultContainerID = container?.id
+        if let id = container?.id {
+            onExitStatusResolved?(id, result.exitStatus)
+        }
     }
 
     func applyRunningPartial(_ summary: String?) {

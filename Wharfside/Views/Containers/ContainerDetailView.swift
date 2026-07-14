@@ -17,6 +17,7 @@ struct ContainerDetailView: View {
         service: any ContainerServicing,
         lifecycleObserver: ContainerLifecycleObserver,
         availability: any AvailabilityProviding,
+        exitStatusBackfill: ExitStatusBackfillCache? = nil,
         reportEnvironmentProvider: @escaping () -> DiagnosisReportEnvironment = { .current(runtimeVersion: nil) },
         onBackToList: @escaping () -> Void
     ) {
@@ -24,7 +25,11 @@ struct ContainerDetailView: View {
         self.lifecycleObserver = lifecycleObserver
         self.onBackToList = onBackToList
         _viewModel = State(
-            initialValue: ContainerDetailViewModel(containerID: containerID, service: service)
+            initialValue: ContainerDetailViewModel(
+                containerID: containerID,
+                service: service,
+                exitStatusBackfill: exitStatusBackfill
+            )
         )
         _logViewModel = State(initialValue: LogViewModel(containerID: containerID, service: service))
         _diagnosisCardViewModel = State(
@@ -143,6 +148,7 @@ struct ContainerDetailView: View {
                         ContainerOverviewSection(
                             detail: detail,
                             displayStatus: viewModel.displayStatusLabel(for: detail),
+                            overviewExitStatus: viewModel.overviewExitStatus,
                             observerRestartCount: diagnosisCardViewModel.observerRestartCount,
                             isDiagnosisEligible: diagnosisCardViewModel.isEligible,
                             diagnosisCardViewModel: diagnosisCardViewModel,
@@ -183,6 +189,10 @@ struct ContainerDetailView: View {
     private func bindDiagnosisContext() {
         diagnosisCardViewModel.logEntriesProvider = {
             logViewModel.recentEntries(window: DiagnosisCardViewModel.logEntriesWindow)
+        }
+        diagnosisCardViewModel.onExitStatusResolved = { [viewModel] id, status in
+            guard id == viewModel.containerID else { return }
+            viewModel.recordDiagnosisExitStatus(status)
         }
 
         guard let detail = viewModel.detail else { return }
