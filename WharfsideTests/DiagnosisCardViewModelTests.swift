@@ -55,7 +55,8 @@ struct DiagnosisCardViewModelTests {
         let viewModel = makeViewModel(session: session)
         viewModel.updateContainer(stoppedContainer(id: "app"))
 
-        var published: (String, ExitStatus)?
+        // Qualify: Containerization also defines ExitStatus; bare name is ambiguous in tests.
+        var published: (String, WharfsideAnalysis.ExitStatus)?
         viewModel.onExitStatusResolved = { id, status in
             published = (id, status)
         }
