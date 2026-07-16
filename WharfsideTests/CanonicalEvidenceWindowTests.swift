@@ -17,30 +17,16 @@ import WharfsideAnalysis
         )
         let stdioOnly = fixture.filter { $0.source == .stdio }
         let bootOnly = fixture.filter { $0.source == .boot }
-        #expect(!stdioOnly.isEmpty)
-        #expect(!bootOnly.isEmpty)
+        #expect(!stdioOnly.isEmpty && !bootOnly.isEmpty)
 
-        let containerService = MockContainerService()
+        let containerService = mockFixtureLogService(stdio: stdioOnly, boot: bootOnly)
         containerService.exitStatusByID["diag-loud"] = .unavailable(reason: .runtimeGone)
-        containerService.logStreamFactory = { _, source in
-            AsyncThrowingStream { continuation in
-                let lines = (source == .boot ? bootOnly : stdioOnly).map(\.raw)
-                for line in lines {
-                    let chunkSource: LogSource = source == .boot ? .boot : .stdio
-                    continuation.yield(
-                        LogChunk(source: chunkSource, data: Data((line + "\n").utf8))
-                    )
-                }
-                continuation.finish()
-            }
-        }
 
-        let session = StubDiagnosisSession(mode: .emit(canonicalSampleDiagnosis))
         let diagnosisService = LogDiagnosisService(
             availability: StubProvider(sequence: [.full]),
             lifecycleObserver: ContainerLifecycleObserver(),
             containerService: containerService,
-            sessionFactory: session
+            sessionFactory: StubDiagnosisSession(mode: .emit(canonicalSampleDiagnosis))
         )
         let viewModel = DiagnosisCardViewModel(
             containerID: "diag-loud",
@@ -61,13 +47,7 @@ import WharfsideAnalysis
             Issue.record("Expected result phase")
             return
         }
-        let digest = state.result.renderedDigest
-        #expect(digest.contains("EXIT_CODE: 1 (from boot log)"))
-        #expect(digest.contains("BOOT_LOG (runtime init, usually not the app's crash cause):"))
-        #expect(state.result.ruleMetadata.matchedRuleIDs.contains("noise.vminitd-memory-threshold"))
-        #expect(state.result.exitStatus == .known(1, source: .bootLog))
-        // Discovery 4: stdioWithBootFallback + resolved exit 1 must not attract no-evidence.
-        #expect(!state.result.ruleMetadata.matchedRuleIDs.contains("precheck.no-evidence"))
+        assertStdioPrimaryBootEvidence(state.result)
     }
 
     /// Collector must return stdio + boot even when stdio is non-empty (unconditional boot phase).
@@ -77,20 +57,7 @@ import WharfsideAnalysis
         )
         let stdioOnly = fixture.filter { $0.source == .stdio }
         let bootOnly = fixture.filter { $0.source == .boot }
-
-        let service = MockContainerService()
-        service.logStreamFactory = { _, source in
-            AsyncThrowingStream { continuation in
-                let lines = (source == .boot ? bootOnly : stdioOnly).map(\.raw)
-                for line in lines {
-                    let chunkSource: LogSource = source == .boot ? .boot : .stdio
-                    continuation.yield(
-                        LogChunk(source: chunkSource, data: Data((line + "\n").utf8))
-                    )
-                }
-                continuation.finish()
-            }
-        }
+        let service = mockFixtureLogService(stdio: stdioOnly, boot: bootOnly)
 
         let entries = await LogEntriesCollector.collect(
             from: service,
@@ -109,20 +76,7 @@ import WharfsideAnalysis
         )
         let stdioOnly = fixture.filter { $0.source == .stdio }
         let bootOnly = fixture.filter { $0.source == .boot }
-
-        let service = MockContainerService()
-        service.logStreamFactory = { _, source in
-            AsyncThrowingStream { continuation in
-                let lines = (source == .boot ? bootOnly : stdioOnly).map(\.raw)
-                for line in lines {
-                    let chunkSource: LogSource = source == .boot ? .boot : .stdio
-                    continuation.yield(
-                        LogChunk(source: chunkSource, data: Data((line + "\n").utf8))
-                    )
-                }
-                continuation.finish()
-            }
-        }
+        let service = mockFixtureLogService(stdio: stdioOnly, boot: bootOnly)
 
         let fromStdioTab = await LogEntriesCollector.assembleEvidence(
             from: service,
@@ -155,6 +109,33 @@ import WharfsideAnalysis
 }
 
 @MainActor
+private func assertStdioPrimaryBootEvidence(_ result: DiagnosisResult) {
+    let digest = result.renderedDigest
+    #expect(digest.contains("EXIT_CODE: 1 (from boot log)"))
+    #expect(digest.contains("BOOT_LOG (runtime init, usually not the app's crash cause):"))
+    #expect(result.ruleMetadata.matchedRuleIDs.contains("noise.vminitd-memory-threshold"))
+    #expect(result.exitStatus == .known(1, source: .bootLog))
+    // Discovery 4: stdioWithBootFallback + resolved exit 1 must not attract no-evidence.
+    #expect(!result.ruleMetadata.matchedRuleIDs.contains("precheck.no-evidence"))
+}
+
+@MainActor
+private func mockFixtureLogService(stdio: [LogEntry], boot: [LogEntry]) -> MockContainerService {
+    let service = MockContainerService()
+    service.logStreamFactory = { _, source in
+        AsyncThrowingStream { continuation in
+            let lines = (source == .boot ? boot : stdio).map(\.raw)
+            for line in lines {
+                let chunkSource: LogSource = source == .boot ? .boot : .stdio
+                continuation.yield(LogChunk(source: chunkSource, data: Data((line + "\n").utf8)))
+            }
+            continuation.finish()
+        }
+    }
+    return service
+}
+
+@MainActor
 private func renderCanonicalDigest(entries: [LogEntry]) -> String {
     let exit = ExitStatusResolver.resolve(
         runtime: .unavailable(reason: .runtimeGone),
@@ -173,6 +154,7 @@ private func renderCanonicalDigest(entries: [LogEntry]) -> String {
     ).digest
     return PromptRenderer().render(digest)
 }
+
 @MainActor
 private let canonicalSampleDiagnosis = ContainerDiagnosis(
     summary: "Application printed an error before exit.",
