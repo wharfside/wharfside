@@ -101,8 +101,78 @@ import WharfsideAnalysis
         #expect(entries.contains { $0.source == .boot })
         #expect(entries.contains { $0.raw.contains("status: 1 managed process exit") })
     }
+
+    /// The digest is a function of the container, not of which Logs tab (or none) was open.
+    @Test func digestIsFunctionOfContainerNotUI() async throws {
+        let fixture = try LabeledFixtureParser.loadLabeled(
+            named: "stdio_primary_loses_boot_evidence.log"
+        )
+        let stdioOnly = fixture.filter { $0.source == .stdio }
+        let bootOnly = fixture.filter { $0.source == .boot }
+
+        let service = MockContainerService()
+        service.logStreamFactory = { _, source in
+            AsyncThrowingStream { continuation in
+                let lines = (source == .boot ? bootOnly : stdioOnly).map(\.raw)
+                for line in lines {
+                    let chunkSource: LogSource = source == .boot ? .boot : .stdio
+                    continuation.yield(
+                        LogChunk(source: chunkSource, data: Data((line + "\n").utf8))
+                    )
+                }
+                continuation.finish()
+            }
+        }
+
+        let fromStdioTab = await LogEntriesCollector.assembleEvidence(
+            from: service,
+            containerID: "diag-loud",
+            buffered: stdioOnly,
+            maxDuration: .milliseconds(50)
+        )
+        let fromBootTab = await LogEntriesCollector.assembleEvidence(
+            from: service,
+            containerID: "diag-loud",
+            buffered: bootOnly,
+            maxDuration: .milliseconds(50)
+        )
+        let fromNoLogs = await LogEntriesCollector.assembleEvidence(
+            from: service,
+            containerID: "diag-loud",
+            buffered: [],
+            maxDuration: .milliseconds(50)
+        )
+
+        let stdioDigest = renderCanonicalDigest(entries: fromStdioTab)
+        let bootDigest = renderCanonicalDigest(entries: fromBootTab)
+        let noLogsDigest = renderCanonicalDigest(entries: fromNoLogs)
+
+        #expect(stdioDigest == bootDigest)
+        #expect(bootDigest == noLogsDigest)
+        #expect(stdioDigest.contains("EXIT_CODE: 1 (from boot log)"))
+        #expect(stdioDigest.contains("BOOT_LOG (runtime init, usually not the app's crash cause):"))
+    }
 }
 
+@MainActor
+private func renderCanonicalDigest(entries: [LogEntry]) -> String {
+    let exit = ExitStatusResolver.resolve(
+        runtime: .unavailable(reason: .runtimeGone),
+        bootEntries: entries
+    )
+    let context = ContainerContext(
+        containerName: "diag-loud",
+        image: "docker.io/library/alpine:latest",
+        exitStatus: exit,
+        restartCount: 0
+    )
+    let digest = LogDigestBuilder().buildWithRules(
+        entries: entries,
+        context: context,
+        window: DigestWindow(description: "logs before container exit")
+    ).digest
+    return PromptRenderer().render(digest)
+}
 @MainActor
 private let canonicalSampleDiagnosis = ContainerDiagnosis(
     summary: "Application printed an error before exit.",
