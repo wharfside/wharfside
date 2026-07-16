@@ -1,0 +1,15 @@
+@stdio
+ERROR boom
+@boot
+2026-07-16T12:47:10.543Z info vminitd: built: 2026-06-26T21:58:16Z, commit: 44bec8b9933bc491d0cbf44abac90a1f6aaebf6b, tag: 0.35.0 vminitd booting
+2026-07-16T12:47:10.820Z info vminitd: id: diag-loud starting I/O
+2026-07-16T12:47:10.821Z info vminitd: created vmexec init process
+2026-07-16T12:47:10.822Z info vminitd: id: diag-loud starting managed process
+2026-07-16T12:47:10.831Z warning vminitd: current_bytes: 83279872, high_events_total: 2, threshold_bytes: 83886080 vminitd memory threshold exceeded
+2026-07-16T12:47:10.844Z warning vminitd: current_bytes: 84168704, high_events_total: 32, threshold_bytes: 83886080 vminitd memory threshold exceeded
+2026-07-16T12:47:10.870Z info vminitd: id: diag-loud, pid: 109 got back pid data
+2026-07-16T12:47:10.876Z info vminitd: id: diag-loud, pid: 109 started managed process
+2026-07-16T12:47:10.877Z warning vminitd: current_bytes: 82833408, high_events_total: 47, threshold_bytes: 83886080 vminitd memory threshold exceeded
+2026-07-16T12:47:10.877Z info vminitd: id: diag-loud, status: 1 managed process exit
+2026-07-16T12:47:10.877Z info vminitd: id: diag-loud closing relay for StandardIO stdout
+2026-07-16T12:47:10.877Z info vminitd: id: diag-loud closing relay for StandardIO stderr
