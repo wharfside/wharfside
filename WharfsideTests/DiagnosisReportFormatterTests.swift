@@ -232,6 +232,21 @@ struct DiagnosisReportFormatterTests {
         #expect(!report.contains("noise.vminitd-memory-threshold"))
         #expect(!report.contains("precheck.stop-escalation"))
     }
+
+    /// Digest17 — diag-crash / no-evidence precheck path golden (formatter acceptance).
+    @Test func digest17NoEvidenceGoldenReportContract() {
+        let report = DiagnosisReportFormatter.render(
+            result: digest17GoldenResult(),
+            container: sampleContainer(id: "diag-crush", image: "docker.io/library/alpine:latest"),
+            environment: digestGoldenEnvironment()
+        )
+        #expect(report == goldenFixture("Digest17.report.md"))
+        #expect(report.contains("Diagnosed by: deterministic precheck (precheck.no-evidence; model not invoked)"))
+        #expect(report.contains("Category: unknown · Confidence: low"))
+        #expect(report.contains("(status 1)"))
+        #expect(report.contains("Rules fired: precheck.no-evidence, noise.vminitd-memory-threshold"))
+        #expect(!report.contains("precheck.stop-escalation"))
+    }
 }
 
 private func digestGoldenEnvironment() -> DiagnosisReportEnvironment {
@@ -321,6 +336,50 @@ private func digest15GoldenResult() -> DiagnosisResult {
             precheckRuleID: nil
         ),
         source: .onDeviceModel
+    )
+}
+
+private func digest17GoldenResult() -> DiagnosisResult {
+    let digest = """
+        CONTAINER: diag-crush
+        IMAGE: docker.io/library/alpine:latest
+        EXIT_CODE: 1 (from boot log)
+        WINDOW: logs before container exit
+        RESTARTS: 0
+        SOURCE: boot log only (no application output)
+        FACTS:
+        EVIDENCE: container exited without writing any application output
+        COUNTS: INFO=17 UNKNOWN=45 WARN=4
+        LAST_LINES:
+        2026-07-16T07:49:10.876Z info vminitd: id: diag-crush, pid: 109 started managed process
+        2026-07-16T07:49:10.877Z info vminitd: id: diag-crush, status: 1 managed process exit
+        2026-07-16T07:49:10.877Z info vminitd: id: diag-crush closing relay for StandardIO stdout
+        2026-07-16T07:49:10.877Z info vminitd: id: diag-crush closing relay for StandardIO stderr
+        [    0.502572] EXT4-fs (vdb): unmounting filesystem aa598811-9809-4d4d-9c06-5de0b5962e0c.
+        """
+    return DiagnosisResult(
+        diagnosis: ContainerDiagnosis(
+            summary: "The container exited (status 1) without writing any application output — "
+                + "there is nothing in the logs to analyze. If this exit is unexpected, "
+                + "check whether the command writes errors to stdout/stderr.",
+            category: .unknown,
+            suggestedActions: [
+                "Run `container logs diag-crush` to confirm no output was produced",
+                "If unexpected, run the container's command manually to see its error output"
+            ],
+            confidence: .low
+        ),
+        wasDegraded: false,
+        telemetry: DiagnosisTelemetry(violations: [], retryCount: 0, wasDegraded: false),
+        renderedDigest: digest,
+        ruleMetadata: DiagnosisRuleMetadata(
+            rulebookVersion: "0.1.0",
+            rulebookSource: .bundled,
+            matchedRuleIDs: ["precheck.no-evidence", "noise.vminitd-memory-threshold"],
+            skippedUnknownKinds: [],
+            precheckRuleID: "precheck.no-evidence"
+        ),
+        source: .deterministicPrecheck(ruleID: "precheck.no-evidence")
     )
 }
 
