@@ -182,6 +182,40 @@ struct LogViewModelTests {
         #expect(viewModel.isStreamActive)
     }
 
+    @Test func filterSwitchesDoNotDuplicateBufferOrDiagnosisWindow() async {
+        // The app printed the ERROR line once; `logStream` re-delivers that whole-file
+        // snapshot on every restart. Toggling stdio → boot → stdio must not accrete copies
+        // into the display buffer or (worse) into the diagnosis window fed to the digest.
+        let service = MockContainerService()
+        service.logStreamFactory = { _, _ in
+            AsyncThrowingStream { continuation in
+                continuation.yield(LogChunk(source: .stdio, data: Data("ERROR boom\n".utf8)))
+                continuation.finish()
+            }
+        }
+
+        let viewModel = LogViewModel(containerID: "app", service: service)
+        viewModel.start(containerStatus: .stopped)
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 1 })
+
+        viewModel.sourceFilter = .boot
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 2 })
+        viewModel.sourceFilter = .stdio
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 3 })
+        #expect(await TestPolling.waitUntil { viewModel.isStreamFinished })
+
+        // Display layer: buffer cleared on each toggle — no visible triples, no Copy triples.
+        let lineTexts = viewModel.displayRows.compactMap { row -> String? in
+            guard case .line(let line) = row else { return nil }
+            return line.text
+        }
+        #expect(lineTexts == ["ERROR boom"])
+
+        // Integrity layer: the diagnosis window contains the entry exactly once.
+        let windowEntries = viewModel.recentEntries(window: .seconds(3600))
+        #expect(windowEntries.filter { $0.raw == "ERROR boom" }.count == 1)
+    }
+
     @Test func sourceFilterChangeRestartsStream() async {
         let service = MockContainerService()
         service.logStreamFactory = { _, source in

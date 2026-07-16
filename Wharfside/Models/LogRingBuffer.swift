@@ -80,15 +80,33 @@ struct LogRingBuffer: Sendable {
         return (matches, matchCount)
     }
 
-    /// Parsed entries received within `window` of `now`.
+    /// Parsed entries received within `window` of `now`, deduplicated for evidence use.
     ///
     /// Intended for issue 1.6 (`LogDiagnosisService`): pass a digest window such as
     /// `.seconds(300)` to collect recent ERROR/WARN context without re-parsing raw chunks.
+    ///
+    /// This is the diagnosis boundary, so it must not inherit the display buffer's
+    /// accumulation semantics. `logStream` re-delivers whole-file snapshots on every restart
+    /// (source toggle, container restart), which appends byte-identical lines the app only
+    /// emitted once. Collapsing them here keeps the digest from fabricating frequency
+    /// (`ERROR=3`, `[3x]`) regardless of how the UI buffer accreted. Identity is
+    /// `(source, embedded timestamp, raw line)`. Boot-log lines are always timestamped by
+    /// vminitd, so genuine repeats there survive; stdio repeats survive only when the app
+    /// timestamps its own output — bare stdout spam undercounts (genuine `[500x]` folds to
+    /// `[1x]`). That is the fail-closed-safe direction: undercounting duplicate spam is honest,
+    /// whereas the bug this replaced overcounted re-reads, which fabricates evidence.
     func recentEntries(within window: Duration, now: Date = .now) -> [LogEntry] {
         let cutoff = now.addingTimeInterval(-window.timeInterval)
-        return lines
-            .filter { $0.receivedAt >= cutoff }
-            .map { line in
+        var seen = Set<EntryIdentity>()
+        var entries: [LogEntry] = []
+        for line in lines where line.receivedAt >= cutoff {
+            let identity = EntryIdentity(
+                source: line.source,
+                timestamp: line.entry.timestamp,
+                raw: line.entry.raw
+            )
+            guard seen.insert(identity).inserted else { continue }
+            entries.append(
                 LogEntry(
                     timestamp: line.entry.timestamp,
                     level: line.entry.level,
@@ -96,7 +114,15 @@ struct LogRingBuffer: Sendable {
                     raw: line.entry.raw,
                     source: line.source
                 )
-            }
+            )
+        }
+        return entries
+    }
+
+    private struct EntryIdentity: Hashable {
+        let source: LogSource
+        let timestamp: Date?
+        let raw: String
     }
 
     private mutating func appendLine(_ rawLine: String, source: LogSource, receivedAt: Date) {
