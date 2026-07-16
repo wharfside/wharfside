@@ -187,6 +187,10 @@ final class LogDiagnosisService {
                 do {
                     try self.ensureAvailable()
                     let context = await self.buildContext(container: container, entries: entries)
+                    // Surface deterministic exit evidence before the (fallible, slow) model
+                    // branch so Overview backfill survives a timed-out / degraded / cancelled
+                    // model run. Same value both the precheck and model results carry.
+                    continuation.yield(.exitStatusResolved(context.digest.exitStatus))
                     let result = try await self.withDiagnosisTimeout {
                         try await self.runStreamingValidatedDiagnosis(
                             context: context,

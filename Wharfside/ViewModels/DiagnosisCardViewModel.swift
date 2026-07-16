@@ -187,6 +187,8 @@ final class DiagnosisCardViewModel {
             for try await event in stream {
                 try Task.checkCancellation()
                 switch event {
+                case .exitStatusResolved(let status):
+                    onExitStatusResolved?(containerID, status)
                 case .partial(let partial):
                     applyPartial(partial)
                 case .finalized(let result):
@@ -225,9 +227,10 @@ final class DiagnosisCardViewModel {
     }
 
     private func applyFinalized(_ result: DiagnosisResult, containerID: String) async {
+        // Exit status is published earlier via `.exitStatusResolved` (pre-model), so Overview
+        // backfill does not wait on — or depend on — the model finalizing here.
         phase = .result(ResultState(result: result, isVerifying: true))
         resultContainerID = containerID
-        onExitStatusResolved?(containerID, result.exitStatus)
 
         try? await Task.sleep(for: .milliseconds(200))
         guard !Task.isCancelled else { return }
