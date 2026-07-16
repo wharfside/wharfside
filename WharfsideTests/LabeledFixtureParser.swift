@@ -38,10 +38,7 @@ enum LabeledFixtureParser {
   }
 
   static func loadBootLog(named filename: String) throws -> [LogEntry] {
-    let url = URL(fileURLWithPath: #filePath)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("Packages/WharfsideAnalysis/Tests/Fixtures/\(filename)")
+    let url = fixtureURL(named: filename)
     let text = try String(contentsOf: url, encoding: .utf8)
     return LogParser().parse(text: text).map {
       LogEntry(
@@ -52,5 +49,18 @@ enum LabeledFixtureParser {
         source: .boot
       )
     }
+  }
+
+  /// Loads a fixture that may contain `@stdio` / `@boot` section markers.
+  static func loadLabeled(named filename: String) throws -> [LogEntry] {
+    let text = try String(contentsOf: fixtureURL(named: filename), encoding: .utf8)
+    return parse(text: text)
+  }
+
+  private static func fixtureURL(named filename: String) -> URL {
+    URL(fileURLWithPath: #filePath)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("Packages/WharfsideAnalysis/Tests/Fixtures/\(filename)")
   }
 }

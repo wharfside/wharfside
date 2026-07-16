@@ -56,6 +56,55 @@ struct LogRingBufferTests {
         #expect(entries.first?.source == .stdio)
     }
 
+    @Test func recentEntriesCollapsesReReadSnapshots() {
+        var buffer = LogRingBuffer()
+        // A re-fetched whole-file snapshot appends byte-identical lines; the display buffer
+        // keeps them, but the diagnosis window must not inflate frequency evidence.
+        let snapshot = LogChunk(source: .stdio, data: Data("ERROR boom\n".utf8))
+        buffer.append(chunk: snapshot)
+        buffer.append(chunk: snapshot)
+        buffer.append(chunk: snapshot)
+
+        #expect(buffer.count == 3)
+
+        let entries = buffer.recentEntries(within: .seconds(3600))
+        #expect(entries.count == 1)
+        #expect(entries.first?.raw == "ERROR boom")
+    }
+
+    @Test func recentEntriesFoldsUntimestampedRepeatsWithinOneFetch() {
+        // Accepted, deliberate limitation (called out in the PR body): the dedup identity is
+        // (source, embedded timestamp, raw line). N genuinely-distinct untimestamped
+        // occurrences arriving in a single snapshot are indistinguishable from one line
+        // re-read N times across snapshots — the buffer keeps no per-fetch provenance — so
+        // both fold to one. This undercounts duplicate spam ([1x] when reality was [3x]).
+        // The bug this replaced OVERcounted ([3x] when reality was [1x]), which fabricates
+        // evidence; undercounting is the honest side of the line. This test pins the choice so
+        // any future change to distinguish the two cases is made consciously.
+        var buffer = LogRingBuffer()
+        buffer.append(
+            chunk: LogChunk(source: .stdio, data: Data("ERROR boom\nERROR boom\nERROR boom\n".utf8))
+        )
+
+        #expect(buffer.count == 3)
+        let entries = buffer.recentEntries(within: .seconds(3600))
+        #expect(entries.count == 1)
+    }
+
+    @Test func recentEntriesKeepsDistinctTimestampedRepeats() {
+        var buffer = LogRingBuffer()
+        // Genuine repeats carry distinct embedded timestamps, so they survive dedup.
+        buffer.append(
+            chunk: LogChunk(source: .stdio, data: Data("2026-07-16T10:00:01Z ERROR retry\n".utf8))
+        )
+        buffer.append(
+            chunk: LogChunk(source: .stdio, data: Data("2026-07-16T10:00:02Z ERROR retry\n".utf8))
+        )
+
+        let entries = buffer.recentEntries(within: .seconds(3600))
+        #expect(entries.count == 2)
+    }
+
     @Test func recentEntriesPreservesSource() {
         var buffer = LogRingBuffer()
         buffer.append(chunk: LogChunk(source: .boot, data: Data("boot line\n".utf8)))

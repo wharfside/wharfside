@@ -68,6 +68,28 @@ struct DiagnosisCardViewModelTests {
         #expect(published?.1 == .known(1, source: .runtime))
     }
 
+    @Test func exitStatusPublishedBeforeModelFinalizes() async throws {
+        // Deterministic exit evidence must reach Overview even when the model tier never
+        // finalizes (slow / timed out / degraded) — it is resolved pre-branch, not on finalize.
+        let session = StubDiagnosisSession(mode: .hang)
+        let viewModel = makeViewModel(session: session)
+        viewModel.updateContainer(stoppedContainer(id: "app"))
+
+        var published: (String, WharfsideAnalysis.ExitStatus)?
+        viewModel.onExitStatusResolved = { id, status in
+            published = (id, status)
+        }
+
+        viewModel.explain()
+        #expect(await TestPolling.waitUntil { published != nil })
+        #expect(published?.0 == "app")
+        #expect(published?.1 == .known(1, source: .runtime))
+        // Still running: the callback did not wait on the model to finalize.
+        #expect(viewModel.isRunning)
+
+        viewModel.onDisappear()
+    }
+
     @Test func degradedResultPreservesFlag() async throws {
         let violating = ContainerDiagnosis(
             summary: "Unknown failure.",
@@ -250,12 +272,14 @@ struct DiagnosisCardViewModelTests {
             sessionFactory: session
         )
         let containerService = MockContainerService()
-        return DiagnosisCardViewModel(
+        let viewModel = DiagnosisCardViewModel(
             containerID: "app",
             diagnosisService: service,
             containerService: containerService,
             logEntriesProvider: { cardSampleEntries() }
         )
+        viewModel.coldFetchPhaseDuration = .milliseconds(50)
+        return viewModel
     }
 }
 

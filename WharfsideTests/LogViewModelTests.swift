@@ -182,6 +182,46 @@ struct LogViewModelTests {
         #expect(viewModel.isStreamActive)
     }
 
+    @Test func filterSwitchesDoNotDuplicateBufferOrDiagnosisWindow() async {
+        // The app printed the ERROR line once; `logStream` re-delivers that whole-file
+        // snapshot on every restart. Toggling stdio → boot → stdio must not accrete copies
+        // into the display buffer or (worse) into the diagnosis window fed to the digest.
+        let service = MockContainerService()
+        service.logStreamFactory = { _, _ in
+            AsyncThrowingStream { continuation in
+                continuation.yield(LogChunk(source: .stdio, data: Data("ERROR boom\n".utf8)))
+                continuation.finish()
+            }
+        }
+
+        let viewModel = LogViewModel(containerID: "app", service: service)
+        viewModel.start(containerStatus: .stopped)
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 1 })
+
+        viewModel.sourceFilter = .boot
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 2 })
+        viewModel.sourceFilter = .stdio
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 3 })
+        #expect(await TestPolling.waitUntil {
+            viewModel.isStreamFinished
+                && viewModel.displayRows.compactMap { row -> String? in
+                    guard case .line(let line) = row else { return nil }
+                    return line.text
+                } == ["ERROR boom"]
+        })
+
+        // Display layer: buffer cleared on each toggle — no visible triples, no Copy triples.
+        let lineTexts = viewModel.displayRows.compactMap { row -> String? in
+            guard case .line(let line) = row else { return nil }
+            return line.text
+        }
+        #expect(lineTexts == ["ERROR boom"])
+
+        // Integrity layer: the diagnosis window contains the entry exactly once.
+        let windowEntries = viewModel.recentEntries(window: .seconds(3600))
+        #expect(windowEntries.filter { $0.raw == "ERROR boom" }.count == 1)
+    }
+
     @Test func sourceFilterChangeRestartsStream() async {
         let service = MockContainerService()
         service.logStreamFactory = { _, source in
@@ -201,5 +241,43 @@ struct LogViewModelTests {
         #expect(await TestPolling.waitUntil { service.logStreamCallCount > initialCalls })
 
         #expect(service.lastLogStreamSource == .boot)
+    }
+
+    /// Logs → Overview → Logs (`onDisappear`→`stop()` then `onAppear`→`start()`) re-attaches
+    /// the stream and re-delivers a whole-file snapshot. Without a clear at reattach, the
+    /// display buffer accretes one copy per round trip (diagnosis `recentEntries` dedup
+    /// hides this from digests — display-only defect, same accumulation family as Bug A).
+    @Test func reattachDoesNotDuplicateDisplayBufferOrDiagnosisWindow() async {
+        let service = MockContainerService()
+        service.logStreamFactory = { _, _ in
+            AsyncThrowingStream { continuation in
+                continuation.yield(LogChunk(source: .stdio, data: Data("ERROR boom\n".utf8)))
+                continuation.finish()
+            }
+        }
+
+        let viewModel = LogViewModel(containerID: "app", service: service)
+        viewModel.start(containerStatus: .stopped)
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 1 })
+        #expect(await TestPolling.waitUntil { viewModel.isStreamFinished })
+
+        // Two Logs→Overview→Logs round trips.
+        viewModel.stop()
+        viewModel.start(containerStatus: .stopped)
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 2 })
+        #expect(await TestPolling.waitUntil { viewModel.isStreamFinished })
+        viewModel.stop()
+        viewModel.start(containerStatus: .stopped)
+        #expect(await TestPolling.waitUntil { service.logStreamCallCount == 3 })
+        #expect(await TestPolling.waitUntil { viewModel.isStreamFinished })
+
+        let lineTexts = viewModel.displayRows.compactMap { row -> String? in
+            guard case .line(let line) = row else { return nil }
+            return line.text
+        }
+        #expect(lineTexts == ["ERROR boom"])
+
+        let windowEntries = viewModel.recentEntries(window: .seconds(3600))
+        #expect(windowEntries.filter { $0.raw == "ERROR boom" }.count == 1)
     }
 }

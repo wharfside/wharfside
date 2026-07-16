@@ -70,6 +70,16 @@ These strings appear in published rulebooks. They are a wire protocol:
 additive changes only; renames are schema-breaking and require a
 `schemaVersion` bump plus migration notes in `wharfside-rules/README.md`.
 
+**Forward compatibility (promise, not accident):** new `MatchCriteria` fields
+MUST be optional with absent-means-no-constraint semantics, so existing rules
+decode byte-for-byte unchanged and behave identically. Cross-version skew rides
+on the existing fail-closed machinery rather than on silent field-dropping: a
+change that could broaden matches for older readers requires a `schemaVersion`
+bump, unknown rule *kinds* are skipped-and-counted (I6), and any
+signature/schema mismatch falls closed to the seed (§5). `Codable` provides the
+optional-field decoding for free; stating the rule here makes it a contract
+instead of an accident.
+
 ### 4.1 Source identifiers (`MatchCriteria.sources`)
 | Identifier | Meaning |
 | --- | --- |
@@ -92,6 +102,37 @@ Precheck `emitsFact` strings are rendered verbatim into the digest under a
 `FACTS:` section (see §6.1). Format is free text authored in the rulebook;
 recommended convention `KEY: sentence`, e.g.
 `TERMINATION: SIGTERM escalated to SIGKILL within stop grace period`.
+
+### 4.4 Match predicates (`MatchCriteria`)
+All fields are optional; a rule matches when **every** present predicate holds
+(logical AND). Additive since B8 — no `schemaVersion` bump.
+
+| Field | Type | Semantics |
+| --- | --- | --- |
+| `imagePrefix` | `String?` | `MatchContext.image` has this prefix |
+| `exitCodes` | `[Int]?` | `MatchContext.exitCode` present and in the list |
+| `sources` | `[String]?` | `MatchContext.source` in the list (§4.1 identifiers) |
+| `logPatterns` | `[String]?` | **every** pattern matches at least one window line (positive AND) |
+| `maxErrorCount` | `Int?` | `MatchContext.errorLineCount <= maxErrorCount` (e.g. `0` = no error-level content) |
+| `excludesLogPatterns` | `[String]?` | matches only when **none** of these patterns match any window line (negative predicate) |
+| `excludesExitCodes` | `[Int]?` | matches unless `exitCode` is present **and** in the list; a nil (unresolved) exit is "not excluded" |
+
+`MatchContext.errorLineCount` is the count of ERROR-level entries in the same
+final-cycle window as `logLines` (I5 single window), computed app-side in
+`WharfsideAnalysis` — the rule vocabulary stays declarative and pure.
+
+### 4.5 Precheck conclusion fields (`PrecheckRule`)
+A precheck short-circuits the model when `conclusionCategory` + `conclusionSummary`
+are set. Optional presentation fields (additive since B8):
+
+| Field | Type | Semantics |
+| --- | --- | --- |
+| `conclusionConfidence` | `String?` | `Confidence` raw (`low`/`medium`/`high`); absent → `high` (preserves pre-B8 behavior) |
+| `conclusionActions` | `[String]?` | suggested actions; absent → consumer default (orderly-stop action) |
+
+Substitution tokens (filled by the app consumer, `PrecheckDiagnosisBuilder`):
+`{container}` → container id; `{exit_status}` → `" (status N)"` when the exit
+code is resolved, or `""` when unresolved (dropped, never guessed).
 
 ## 5. Rulebook loading
 
