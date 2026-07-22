@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../davit"
+		},
+		{
+			"path": "../homebrew-wharfside"
+		},
+		{
+			"path": "../wharfside-rules"
+		},
+		{
+			"path": "../container"
+		}
+	],
+	"settings": {}
+}
