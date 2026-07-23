@@ -275,7 +275,6 @@ jobs:
           formula-name: wharfside
           formula-path: Casks/wharfside.rb
           homebrew-tap: wharfside/homebrew-wharfside
-          download-url: https://github.com/wharfside/wharfside/releases/download/${{ github.ref_name }}/Wharfside.dmg
           download-sha256: ${{ steps.dmg-sha.outputs.sha256 }}
           commit-message: |
             {{formulaName}} {{version}}
